@@ -2,40 +2,29 @@
 
 RAG system for querying Vietnamese contract PDFs. Upload a contract, ask questions in natural language, get answers grounded in the document with page/section citations.
 
-## Architecture
+## How it works
 
-The system follows a pipeline of independent, single-responsibility stages, wired together in `app/dependencies.py` (composition root).
+### Ingestion (when a PDF is uploaded)
 
-### Ingestion pipeline (`app/ingestion/`)
+1. Extract raw text blocks from the PDF, keeping font size/style and position for each block.
+2. Detect headers/footers and general layout so they don't pollute the content.
+3. For each block, compute structural features: does it look like a heading (font size, bold, numbering, short line, etc.), and if it has numbering (e.g. "Dieu 3", "1.2", "a)"), what numbering level does that imply.
+4. Infer the document's own numbering/heading conventions from those features (e.g. this document uses "Dieu N" for top-level sections).
+5. Walk the blocks in order and turn them into a flat list of nodes: a heading starts a new node, non-heading text is appended as the body of the current node.
+6. Build a hierarchy out of that flat list using the numbering level of each node (a level-2 node becomes a child of the nearest preceding level-1 node, and so on).
+7. Walk the hierarchy and split it into retrieval-sized chunks: each chunk keeps its section number/title as context, long sections are split by paragraph, then sentence, then raw character count as a fallback, with some character overlap between adjacent chunks so context isn't cut off mid-thought.
+8. Embed every chunk and upsert it into the vector database; also index the same chunks into an in-memory keyword (BM25) index.
 
-1. `pdf_parser.py` - extracts text blocks from PDF via PyMuPDF, preserving font/position metadata.
-2. `layout_analyzer.py` - detects headers/footers and layout structure.
-3. `feature_extractor.py` - extracts structural features per block (numbering, heading likelihood, font style).
-4. `schema_inference.py` - infers the document's numbering/heading schema.
-5. `structure_detector.py` - converts features into structural nodes (headings + body text).
-6. `hierarchy_builder.py` - builds a hierarchical tree from flat structural nodes.
-7. `adaptive_chunker.py` - splits the tree into retrieval-sized chunks, preserving structural context (section number/title) in each chunk.
+### Answering a question
 
-Chunks are embedded (`app/embedding/`) and stored in Qdrant (`app/vectorstore/`), with a parallel BM25 index (`app/retrieval/bm25_index.py`) built in memory.
+1. Embed the question and run a dense (semantic) similarity search against the vector database, scoped to the target document.
+2. Run a keyword (BM25) search against the same document's chunks.
+3. Fuse both ranked lists into one using Reciprocal Rank Fusion (a chunk's fused score is the sum of `1 / (k + rank)` across the lists it appears in, so it rewards chunks that rank well in either method).
+4. Rerank the fused candidates with a cross-encoder that scores the query against each candidate chunk directly (more accurate, but too slow to run over the whole document, hence only applied to the fused shortlist).
+5. Take the top-ranked chunks and build a prompt: the chunks as context, the question, and instructions to answer only from that context and say so when the context is insufficient.
+6. Send the prompt to the LLM and return its answer to the client, together with citation metadata (page range, section) for each chunk that was used as context.
 
-### Retrieval and generation (`app/retrieval/`, `app/reranking/`, `app/generation/`)
-
-1. `dense_retriever.py` - semantic search against Qdrant using the query embedding.
-2. `bm25_retriever.py` - keyword search against the in-memory BM25 index.
-3. `rrf.py` - fuses dense and BM25 results via Reciprocal Rank Fusion (`hybrid_retriever.py`).
-4. `reranking/cross_encoder.py` - reranks fused candidates with a cross-encoder model.
-5. `generation/context_builder.py` + `prompt_builder.py` - build the LLM prompt from top-ranked chunks.
-6. `generation/gemini_client.py` - calls Gemini to generate the answer.
-7. `generation/citation_builder.py` - maps the ranked chunks used as context to citation metadata (page range, section) returned to the client.
-
-### API (`app/api/`)
-
-- `documents.py` - upload a PDF (`POST /documents`, runs the full ingestion pipeline synchronously and returns the final status), list documents (`GET /documents`), get one document (`GET /documents/{id}`).
-- `query.py` - ask a question about a ready document (`POST /documents/{id}/query`), returns the answer plus citations.
-
-### Frontend (`frontend/`)
-
-React + TypeScript + Vite + Tailwind. Document list with upload, and a per-document chat panel with streaming-style markdown rendering and citation display.
+Document upload and question-answering both happen synchronously within a single HTTP request: the client waits for the full pipeline to finish before getting a response.
 
 ## Models
 
