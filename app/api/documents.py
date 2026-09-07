@@ -3,11 +3,11 @@ from uuid import uuid4
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     File,
     HTTPException,
     UploadFile,
 )
+from starlette.concurrency import run_in_threadpool
 
 from app.dependencies import document_service, indexing_service
 
@@ -20,25 +20,8 @@ UPLOAD_DIR.mkdir(
 )
 
 
-def index_document(document_id: str, file_path: str) -> None:
-    try:
-        indexing_service.index(
-            file_path=file_path,
-            document_id=document_id,
-        )
-
-        document_service.mark_ready(document_id)
-
-    except Exception as error:
-        document_service.mark_failed(
-            document_id=document_id,
-            error_message=str(error),
-        )
-
-
 @router.post("")
 async def upload_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
 ):
     if not file.filename.lower().endswith(".pdf"):
@@ -58,23 +41,50 @@ async def upload_document(
         while chunk := await file.read(1024 * 1024):
             buffer.write(chunk)
 
-    document = document_service.create(
+    document_service.create(
         document_id=document_id,
         filename=file.filename,
         file_path=str(file_path),
     )
 
-    background_tasks.add_task(
-        index_document,
-        document_id,
-        str(file_path),
-    )
+    try:
+        await run_in_threadpool(
+            indexing_service.index,
+            file_path=str(file_path),
+            document_id=document_id,
+        )
+
+        document = document_service.mark_ready(document_id)
+
+    except Exception as error:
+        document = document_service.mark_failed(
+            document_id=document_id,
+            error_message=str(error),
+        )
 
     return {
         "document_id": document.document_id,
         "filename": document.filename,
         "status": document.status,
+        "error_message": document.error_message,
     }
+
+
+@router.get("")
+def list_documents():
+
+    documents = document_service.list_all()
+
+    return [
+        {
+            "document_id": document.document_id,
+            "filename": document.filename,
+            "status": document.status,
+            "created_at": document.created_at,
+            "error_message": document.error_message,
+        }
+        for document in documents
+    ]
 
 
 @router.get("/{document_id}")

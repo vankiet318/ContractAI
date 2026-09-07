@@ -30,7 +30,14 @@ class DocumentService:
     def get(self, document_id: str) -> Document | None:
         return self.repository.get(document_id)
 
-    def mark_ready(self, document_id: str) -> None:
+    def list_all(self) -> list[Document]:
+        return sorted(
+            self.repository.list_all(),
+            key=lambda document: document.created_at,
+            reverse=True,
+        )
+
+    def mark_ready(self, document_id: str) -> Document:
         document = self.repository.get(document_id)
 
         if document is None:
@@ -42,11 +49,13 @@ class DocumentService:
 
         self.repository.update(document)
 
+        return document
+
     def mark_failed(
         self,
         document_id: str,
         error_message: str,
-    ) -> None:
+    ) -> Document:
 
         document = self.repository.get(document_id)
 
@@ -59,3 +68,5 @@ class DocumentService:
         document.error_message = error_message
 
         self.repository.update(document)
+
+        return document

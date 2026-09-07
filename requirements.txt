@@ -1,4 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
 pymupdf
 pytest
 qdrant-client
 sentence-transformers
+rank_bm25
+google-genai
+python-dotenv

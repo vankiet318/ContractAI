@@ -8,5 +8,21 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
+  backend:
+    build: .
+    container_name: contractai-backend
+    env_file:
+      - .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      - qdrant
+
 volumes:
   qdrant_data:
+  hf_cache:

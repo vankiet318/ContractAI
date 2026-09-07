@@ -14,3 +14,6 @@ class DocumentRepository:
 
     def update(self, document: Document) -> None:
         self._documents[document.document_id] = document
+
+    def list_all(self) -> list[Document]:
+        return list(self._documents.values())

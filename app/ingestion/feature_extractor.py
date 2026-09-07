@@ -60,6 +60,13 @@ class FeatureExtractor:
             r"^(?P<number>[IVXLCDM]+)\.(?:\s+|$)",
             re.IGNORECASE,
         ),
+
+        # Điều 1:
+        # ĐIỀU 2.
+        re.compile(
+            r"^Đi[eề]u\s+(?P<number>\d+)\s*[.:)]?(?:\s+|$)",
+            re.IGNORECASE,
+        ),
     ]
 
     ROMAN_PATTERN = re.compile(

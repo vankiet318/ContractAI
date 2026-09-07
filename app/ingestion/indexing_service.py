@@ -6,6 +6,7 @@ from app.ingestion.layout_analyzer import LayoutAnalyzer
 from app.ingestion.pdf_parser import PDFParser
 from app.ingestion.schema_inference import SchemaInference
 from app.ingestion.structure_detector import StructureDetector
+from app.retrieval.bm25_index import BM25Index
 from app.vectorstore.qdrant_repository import QdrantRepository
 
 
@@ -22,6 +23,7 @@ class DocumentIndexingService:
         chunker: AdaptiveChunker,
         embedding_model: EmbeddingModel,
         vector_store: QdrantRepository,
+        bm25_index: BM25Index,
     ):
         self.parser = parser
         self.layout_analyzer = layout_analyzer
@@ -32,6 +34,7 @@ class DocumentIndexingService:
         self.chunker = chunker
         self.embedding_model = embedding_model
         self.vector_store = vector_store
+        self.bm25_index = bm25_index
 
     def index(
         self,
@@ -103,6 +106,11 @@ class DocumentIndexingService:
         self.vector_store.upsert(
             chunks=chunks,
             vectors=vectors,
+        )
+
+        # 11. Build BM25 index
+        self.bm25_index.build(
+            documents=chunks,
         )
 
         return len(chunks)

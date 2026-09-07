@@ -1,6 +1,10 @@
 import os
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 @dataclass
 class EmbeddingConfig:
@@ -42,5 +46,33 @@ class QdrantConfig:
             collection_name=os.getenv(
                 "QDRANT_COLLECTION_NAME",
                 "contracts",
+            ),
+        )
+
+
+@dataclass
+class GeminiConfig:
+
+    api_key: str | None
+
+    model_name: str = "gemini-3.6-flash"
+
+    temperature: float = 0.2
+
+    max_output_tokens: int = 4096
+
+    @classmethod
+    def from_env(cls) -> "GeminiConfig":
+        return cls(
+            api_key=os.getenv("GEMINI_API_KEY"),
+            model_name=os.getenv(
+                "GEMINI_MODEL_NAME",
+                "gemini-3.6-flash",
+            ),
+            temperature=float(
+                os.getenv("GEMINI_TEMPERATURE", "0.2")
+            ),
+            max_output_tokens=int(
+                os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "4096")
             ),
         )
