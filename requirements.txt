@@ -1,0 +1,4 @@
+pymupdf
+pytest
+qdrant-client
+sentence-transformers
