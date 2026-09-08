@@ -33,35 +33,76 @@ class BM25Index:
 
         for document in documents:
             grouped[
-                document.document_id
+                document.session_id
             ].append(document)
 
-        for document_id, chunks in grouped.items():
+        for session_id, chunks in grouped.items():
+
+            all_chunks = (
+                self._documents.get(session_id, [])
+                + chunks
+            )
 
             tokenized_documents = [
                 self._tokenize(chunk.text)
-                for chunk in chunks
+                for chunk in all_chunks
             ]
 
-            self._indexes[document_id] = BM25Okapi(
+            self._indexes[session_id] = BM25Okapi(
                 tokenized_documents
             )
 
-            self._documents[document_id] = chunks
+            self._documents[session_id] = all_chunks
+
+    def delete(self, session_id: str) -> None:
+        self._indexes.pop(session_id, None)
+        self._documents.pop(session_id, None)
+
+    def delete_document(
+        self,
+        session_id: str,
+        document_id: str,
+    ) -> None:
+
+        chunks = self._documents.get(session_id)
+
+        if chunks is None:
+            return
+
+        remaining_chunks = [
+            chunk
+            for chunk in chunks
+            if chunk.document_id != document_id
+        ]
+
+        if not remaining_chunks:
+            self.delete(session_id)
+            return
+
+        tokenized_documents = [
+            self._tokenize(chunk.text)
+            for chunk in remaining_chunks
+        ]
+
+        self._indexes[session_id] = BM25Okapi(
+            tokenized_documents
+        )
+
+        self._documents[session_id] = remaining_chunks
 
     def search(
         self,
         query: str,
-        document_id: str,
+        session_id: str,
         limit: int = 5,
     ) -> list[tuple[DocumentChunk, float]]:
 
-        bm25 = self._indexes.get(document_id)
+        bm25 = self._indexes.get(session_id)
 
         if bm25 is None:
             return []
 
-        documents = self._documents[document_id]
+        documents = self._documents[session_id]
 
         query_tokens = self._tokenize(query)
 

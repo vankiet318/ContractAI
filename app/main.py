@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.documents import router as documents_router
-from app.dependencies import query_router
+from app.dependencies import (
+    auth_router,
+    documents_router,
+    query_router,
+    sessions_router,
+)
 
 
 app = FastAPI(title="ContractAI")
@@ -17,13 +21,25 @@ app.add_middleware(
 
 
 app.include_router(
+    auth_router,
+    prefix="/auth",
+    tags=["Auth"],
+)
+
+app.include_router(
+    sessions_router,
+    prefix="/sessions",
+    tags=["Sessions"],
+)
+
+app.include_router(
     documents_router,
-    prefix="/documents",
+    prefix="/sessions",
     tags=["Documents"],
 )
 
 app.include_router(
     query_router,
-    prefix="/documents",
+    prefix="/sessions",
     tags=["Query"],
 )

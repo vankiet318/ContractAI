@@ -19,7 +19,7 @@ class HybridRetriever:
     def retrieve(
         self,
         query: str,
-        document_id: str,
+        session_id: str,
         limit: int = 5,
         candidate_limit: int = 10,
     ) -> list[RetrievalResult]:
@@ -27,13 +27,13 @@ class HybridRetriever:
         dense_results = self.dense_retriever.retrieve(
             query=query,
             limit=candidate_limit,
-            document_id=document_id,
+            session_id=session_id,
         )
 
         bm25_results = self.bm25_retriever.retrieve(
             query=query,
             limit=candidate_limit,
-            document_id=document_id,
+            session_id=session_id,
         )
 
         return self.rrf.fuse(

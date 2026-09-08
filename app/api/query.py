@@ -1,14 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from typing import Callable
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.documents.models import DocumentStatus
-from app.documents.repository import DocumentRepository
-from app.retrieval.hybrid_retriever import HybridRetriever
-from app.reranking.service import RerankingService
-from app.generation.context_builder import ContextBuilder
-from app.generation.prompt_builder import PromptBuilder
-from app.generation.base import LLM
-from app.generation.citation_builder import CitationBuilder
+from app.messages.service import ChatMessageService
+from app.query.use_case import NoReadyDocumentsError, QuerySessionUseCase
+from app.sessions.models import ChatSession
+from app.sessions.title_service import SessionTitleService
 
 
 class QueryRequest(BaseModel):
@@ -19,148 +17,109 @@ class QueryRequest(BaseModel):
 class CitationResponse(BaseModel):
     source_id: str
     chunk_id: str
+    document_id: str
 
     page_start: int
     page_end: int
 
     section_number: str | None
     section_title: str | None
+    text_snippet: str
 
 
 class QueryResponse(BaseModel):
     question: str
     answer: str
     citations: list[CitationResponse]
+    session_title: str | None = None
+
+
+class ChatMessageResponse(BaseModel):
+    message_id: str
+    question: str
+    answer: str
+    citations: list[CitationResponse]
+    created_at: str
 
 
 def create_query_router(
-    document_repository: DocumentRepository,
-    hybrid_retriever: HybridRetriever,
-    reranking_service: RerankingService,
-    context_builder: ContextBuilder,
-    prompt_builder: PromptBuilder,
-    llm: LLM,
-    citation_builder: CitationBuilder,
+    query_use_case: QuerySessionUseCase,
+    message_service: ChatMessageService,
+    title_service: SessionTitleService,
+    get_owned_session: Callable[..., ChatSession],
 ) -> APIRouter:
 
     router = APIRouter()
 
+    @router.get(
+        "/{session_id}/messages",
+        response_model=list[ChatMessageResponse],
+    )
+    def list_messages(
+        session_id: str,
+        session: ChatSession = Depends(get_owned_session),
+    ):
+        messages = message_service.list_by_session(session_id)
+
+        return [
+            ChatMessageResponse(
+                message_id=message.message_id,
+                question=message.question,
+                answer=message.answer,
+                citations=[
+                    CitationResponse(**citation)
+                    for citation in message.citations
+                ],
+                created_at=message.created_at.isoformat(),
+            )
+            for message in messages
+        ]
+
     @router.post(
-        "/{document_id}/query",
+        "/{session_id}/query",
         response_model=QueryResponse,
     )
-    def query_document(
-        document_id: str,
+    def query_session(
+        session_id: str,
         request: QueryRequest,
+        session: ChatSession = Depends(get_owned_session),
     ):
-
-        # --------------------------------
-        # 1. Check document
-        # --------------------------------
-
-        document = document_repository.get(document_id)
-
-        if document is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Document not found.",
+        try:
+            result = query_use_case.execute(
+                session_id=session_id,
+                question=request.question,
+                top_k=request.top_k,
             )
-
-        if document.status != DocumentStatus.READY:
+        except NoReadyDocumentsError:
             raise HTTPException(
                 status_code=409,
-                detail=(
-                    f"Document is not ready. "
-                    f"Current status: {document.status.value}"
-                ),
+                detail="No ready documents in this session.",
             )
 
-        # --------------------------------
-        # 2. Hybrid retrieval
-        # --------------------------------
-
-        candidates = hybrid_retriever.retrieve(
-            query=request.question,
-            document_id=document_id,
-            candidate_limit=20,
-            limit=20,
-        )
-
-        if not candidates:
-            return QueryResponse(
-                question=request.question,
-                answer=(
-                    "The document does not contain enough "
-                    "information to answer this question."
-                ),
-                citations=[],
-            )
-
-        # --------------------------------
-        # 3. Reranking
-        # --------------------------------
-
-        results = reranking_service.rerank(
-            query=request.question,
-            results=candidates,
-            limit=request.top_k,
-        )
-
-        if not results:
-            return QueryResponse(
-                question=request.question,
-                answer=(
-                    "The document does not contain enough "
-                    "information to answer this question."
-                ),
-                citations=[],
-            )
-
-        # --------------------------------
-        # 4. Build context
-        # --------------------------------
-
-        context_items = context_builder.build(results)
-
-        context = context_builder.format(context_items)
-
-        # --------------------------------
-        # 5. Build prompt
-        # --------------------------------
-
-        prompt = prompt_builder.build(
+        generated_title = title_service.maybe_generate_title(
+            session=session,
             question=request.question,
-            context=context,
         )
-
-        # --------------------------------
-        # 6. Generate answer
-        # --------------------------------
-
-        answer = llm.generate(prompt)
-
-        # --------------------------------
-        # 7. Build citations
-        # --------------------------------
-
-        citations = citation_builder.build(results)
 
         citation_response = [
             CitationResponse(
                 source_id=citation.source_id,
                 chunk_id=citation.chunk_id,
+                document_id=citation.document_id,
                 page_start=citation.page_start,
                 page_end=citation.page_end,
                 section_number=citation.section_number,
                 section_title=citation.section_title,
+                text_snippet=citation.text_snippet,
             )
-            for citation in citations
+            for citation in result.citations
         ]
 
         return QueryResponse(
             question=request.question,
-            answer=answer,
+            answer=result.answer,
             citations=citation_response,
+            session_title=generated_title,
         )
 
     return router

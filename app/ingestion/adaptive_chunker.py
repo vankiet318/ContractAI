@@ -1,7 +1,7 @@
 import re
 from uuid import uuid4
 
-from .models import DocumentChunk, StructureNode
+from .models import ChunkIdentity, DocumentChunk, StructureNode
 
 
 class AdaptiveChunker:
@@ -37,7 +37,7 @@ class AdaptiveChunker:
     def chunk(
         self,
         roots: list[StructureNode],
-        document_id: str,
+        identity: ChunkIdentity,
     ) -> list[DocumentChunk]:
 
         chunks: list[DocumentChunk] = []
@@ -45,7 +45,7 @@ class AdaptiveChunker:
         for root in roots:
             self._process_node(
                 node=root,
-                document_id=document_id,
+                identity=identity,
                 parents=[],
                 chunks=chunks,
             )
@@ -57,7 +57,7 @@ class AdaptiveChunker:
     def _process_node(
         self,
         node: StructureNode,
-        document_id: str,
+        identity: ChunkIdentity,
         parents: list[StructureNode],
         chunks: list[DocumentChunk],
     ) -> None:
@@ -67,7 +67,7 @@ class AdaptiveChunker:
         if node.text.strip():
             node_chunks = self._create_chunks_for_node(
                 node=node,
-                document_id=document_id,
+                identity=identity,
                 path=current_path,
             )
 
@@ -76,7 +76,7 @@ class AdaptiveChunker:
         for child in node.children:
             self._process_node(
                 node=child,
-                document_id=document_id,
+                identity=identity,
                 parents=current_path,
                 chunks=chunks,
             )
@@ -84,7 +84,7 @@ class AdaptiveChunker:
     def _create_chunks_for_node(
         self,
         node: StructureNode,
-        document_id: str,
+        identity: ChunkIdentity,
         path: list[StructureNode],
     ) -> list[DocumentChunk]:
 
@@ -109,7 +109,7 @@ class AdaptiveChunker:
         return [
             self._create_chunk(
                 node=node,
-                document_id=document_id,
+                identity=identity,
                 text=f"{context}\n\n{piece}",
                 path=path,
             )
@@ -379,7 +379,7 @@ class AdaptiveChunker:
     def _create_chunk(
         self,
         node: StructureNode,
-        document_id: str,
+        identity: ChunkIdentity,
         text: str,
         path: list[StructureNode],
     ) -> DocumentChunk:
@@ -404,7 +404,8 @@ class AdaptiveChunker:
 
         return DocumentChunk(
             chunk_id=str(uuid4()),
-            document_id=document_id,
+            document_id=identity.document_id,
+            session_id=identity.session_id,
             text=text,
             page_start=node.page_start or 0,
             page_end=node.page_end or 0,

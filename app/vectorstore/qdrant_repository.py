@@ -3,7 +3,9 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
+    FilterSelector,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     ScoredPoint,
     VectorParams,
@@ -47,6 +49,12 @@ class QdrantRepository:
             ),
         )
 
+        self.client.create_payload_index(
+            collection_name=self.collection_name,
+            field_name="session_id",
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
+
     def upsert(
         self,
         chunks: list[DocumentChunk],
@@ -68,7 +76,7 @@ class QdrantRepository:
             payload = {
                 "chunk_id": chunk.chunk_id,
                 "document_id": chunk.document_id,
-                "workspace_id": chunk.workspace_id,
+                "session_id": chunk.session_id,
                 "text": chunk.text,
 
                 "page_start": chunk.page_start,
@@ -117,12 +125,12 @@ class QdrantRepository:
         vector: list[float],
         limit: int = 5,
         document_id: str | None = None,
-        workspace_id: str | None = None,
+        session_id: str | None = None,
     ) -> list[ScoredPoint]:
 
         query_filter = self._build_filter(
             document_id=document_id,
-            workspace_id=workspace_id,
+            session_id=session_id,
         )
 
         results = self.client.query_points(
@@ -134,10 +142,31 @@ class QdrantRepository:
         )
         return results.points
 
+    def delete_by_session(self, session_id: str) -> None:
+        self._delete_by_field("session_id", session_id)
+
+    def delete_by_document(self, document_id: str) -> None:
+        self._delete_by_field("document_id", document_id)
+
+    def _delete_by_field(self, field_name: str, value: str) -> None:
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=FilterSelector(
+                filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key=field_name,
+                            match=MatchValue(value=value),
+                        )
+                    ]
+                )
+            ),
+        )
+
     @staticmethod
     def _build_filter(
         document_id: str | None = None,
-        workspace_id: str | None = None,
+        session_id: str | None = None,
     ) -> Filter | None:
 
         conditions = []
@@ -152,12 +181,12 @@ class QdrantRepository:
                 )
             )
 
-        if workspace_id is not None:
+        if session_id is not None:
             conditions.append(
                 FieldCondition(
-                    key="workspace_id",
+                    key="session_id",
                     match=MatchValue(
-                        value=workspace_id
+                        value=session_id
                     ),
                 )
             )

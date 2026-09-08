@@ -11,12 +11,14 @@ class DocumentService:
     def create(
         self,
         document_id: str,
+        session_id: str,
         filename: str,
         file_path: str,
     ) -> Document:
 
         document = Document(
             document_id=document_id,
+            session_id=session_id,
             filename=filename,
             file_path=file_path,
             status=DocumentStatus.PROCESSING,
@@ -36,6 +38,16 @@ class DocumentService:
             key=lambda document: document.created_at,
             reverse=True,
         )
+
+    def list_by_session(self, session_id: str) -> list[Document]:
+        return sorted(
+            self.repository.list_by_session(session_id),
+            key=lambda document: document.created_at,
+            reverse=True,
+        )
+
+    def delete(self, document_id: str) -> None:
+        self.repository.delete(document_id)
 
     def mark_ready(self, document_id: str) -> Document:
         document = self.repository.get(document_id)

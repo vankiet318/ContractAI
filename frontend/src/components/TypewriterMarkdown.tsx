@@ -8,11 +8,15 @@ const REVEAL_INTERVAL_MS = 8;
 export function TypewriterMarkdown({
   text,
   onComplete,
+  animate = true,
 }: {
   text: string;
   onComplete?: () => void;
+  animate?: boolean;
 }) {
-  const [visibleLength, setVisibleLength] = useState(0);
+  const [visibleLength, setVisibleLength] = useState(
+    animate ? 0 : text.length,
+  );
   const hasCompletedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;

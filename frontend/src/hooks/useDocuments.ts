@@ -1,23 +1,30 @@
 import { useCallback, useEffect, useState } from "react";
-import { listDocuments } from "../api/documents";
+import { deleteDocument, listDocuments } from "../api/documents";
 import type { DocumentSummary } from "../types";
 
-export function useDocuments() {
+export function useDocuments(sessionId: string) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const result = await listDocuments();
+    const result = await listDocuments(sessionId);
     setDocuments(result);
     setIsLoading(false);
     return result;
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
-    refresh().catch(() => {
-      setIsLoading(false);
-    });
+    setIsLoading(true);
+    refresh().catch(() => setIsLoading(false));
   }, [refresh]);
 
-  return { documents, isLoading, refresh };
+  const remove = useCallback(
+    async (documentId: string) => {
+      await deleteDocument(sessionId, documentId);
+      await refresh();
+    },
+    [sessionId, refresh],
+  );
+
+  return { documents, isLoading, refresh, remove };
 }

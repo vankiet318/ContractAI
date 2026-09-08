@@ -18,7 +18,7 @@ class DenseRetriever:
         query: str,
         limit: int = 5,
         document_id: str | None = None,
-        workspace_id: str | None = None,
+        session_id: str | None = None,
     ) -> list[RetrievalResult]:
 
         query = query.strip()
@@ -34,7 +34,7 @@ class DenseRetriever:
             vector=vector,
             limit=limit,
             document_id=document_id,
-            workspace_id=workspace_id,
+            session_id=session_id,
         )
 
         # 3. Convert DB result → application model

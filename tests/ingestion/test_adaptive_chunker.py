@@ -1,5 +1,5 @@
 from app.ingestion.adaptive_chunker import AdaptiveChunker
-from app.ingestion.models import StructureNode
+from app.ingestion.models import ChunkIdentity, StructureNode
 
 
 def test_chunk_preserves_structure():
@@ -35,7 +35,10 @@ def test_chunk_preserves_structure():
 
     chunks = chunker.chunk(
         roots=[root],
-        document_id="doc-001",
+        identity=ChunkIdentity(
+            document_id="doc-001",
+            session_id="session-001",
+        ),
     )
 
     assert len(chunks) == 1
@@ -43,6 +46,7 @@ def test_chunk_preserves_structure():
     chunk = chunks[0]
 
     assert chunk.document_id == "doc-001"
+    assert chunk.session_id == "session-001"
     assert chunk.section_number == "6.2"
 
     assert chunk.parent_number == "6"

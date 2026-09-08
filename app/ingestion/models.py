@@ -103,6 +103,12 @@ class DocumentSchema:
         default_factory=dict
     )
 
+@dataclass(frozen=True)
+class ChunkIdentity:
+    document_id: str
+    session_id: str
+
+
 @dataclass
 class DocumentChunk:
     chunk_id: str
@@ -115,7 +121,7 @@ class DocumentChunk:
 
     section_number: str | None = None
     section_title: str | None = None
-    workspace_id: str | None = None
+    session_id: str | None = None
     parent_number: str | None = None
     parent_title: str | None = None
 

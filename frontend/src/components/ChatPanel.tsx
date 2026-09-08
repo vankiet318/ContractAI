@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { queryDocument } from "../api/query";
+import { listMessages, querySession } from "../api/query";
 import { ApiError } from "../api/client";
-import type { ChatMessage, DocumentSummary } from "../types";
+import type { ChatMessage, Citation } from "../types";
 import { CitationList } from "./CitationList";
 import { TypingIndicator } from "./TypingIndicator";
 import { TypewriterMarkdown } from "./TypewriterMarkdown";
@@ -31,8 +31,14 @@ function useThinkingLabel(isActive: boolean): string {
   return THINKING_LABELS[index];
 }
 
-function AnswerBubble({ message }: { message: ChatMessage }) {
-  const [isRevealed, setIsRevealed] = useState(false);
+function AnswerBubble({
+  message,
+  onCitationSelect,
+}: {
+  message: ChatMessage;
+  onCitationSelect: (citation: Citation) => void;
+}) {
+  const [isRevealed, setIsRevealed] = useState(!message.animate);
 
   if (message.answer === null) return null;
 
@@ -41,22 +47,68 @@ function AnswerBubble({ message }: { message: ChatMessage }) {
       <div className="text-sm prose prose-sm prose-slate max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
         <TypewriterMarkdown
           text={message.answer}
+          animate={message.animate}
           onComplete={() => setIsRevealed(true)}
         />
       </div>
       {isRevealed && (
-        <CitationList citations={message.citations} />
+        <CitationList
+          citations={message.citations}
+          onSelect={onCitationSelect}
+        />
       )}
     </div>
   );
 }
 
-export function ChatPanel({ document }: { document: DocumentSummary }) {
+export function ChatPanel({
+  sessionId,
+  onCitationSelect,
+  onTitleGenerated,
+}: {
+  sessionId: string;
+  onCitationSelect: (citation: Citation) => void;
+  onTitleGenerated?: (title: string) => void;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [question, setQuestion] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const thinkingLabel = useThinkingLabel(isAsking);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    setIsLoadingHistory(true);
+
+    listMessages(sessionId)
+      .then((history) => {
+        if (isCancelled) return;
+
+        setMessages(
+          history.map((record) => ({
+            id: record.message_id,
+            question: record.question,
+            status: "done",
+            answer: record.answer,
+            citations: record.citations,
+            errorMessage: null,
+            animate: false,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!isCancelled) setMessages([]);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingHistory(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [sessionId]);
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -79,13 +131,14 @@ export function ChatPanel({ document }: { document: DocumentSummary }) {
         answer: null,
         citations: [],
         errorMessage: null,
+        animate: true,
       },
     ]);
     setQuestion("");
     setIsAsking(true);
 
     try {
-      const response = await queryDocument(document.document_id, trimmed);
+      const response = await querySession(sessionId, trimmed);
 
       setMessages((previous) =>
         previous.map((message) =>
@@ -99,6 +152,10 @@ export function ChatPanel({ document }: { document: DocumentSummary }) {
             : message,
         ),
       );
+
+      if (response.session_title && onTitleGenerated) {
+        onTitleGenerated(response.session_title);
+      }
     } catch (err) {
       setMessages((previous) =>
         previous.map((message) =>
@@ -119,16 +176,10 @@ export function ChatPanel({ document }: { document: DocumentSummary }) {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="p-4 border-b border-slate-200">
-        <h1 className="text-sm font-semibold truncate">
-          {document.filename}
-        </h1>
-      </header>
-
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {messages.length === 0 && (
+        {!isLoadingHistory && messages.length === 0 && (
           <p className="text-sm text-slate-500">
-            Ask a question about this document.
+            Đặt câu hỏi về các tài liệu trong đoạn chat này.
           </p>
         )}
 
@@ -152,7 +203,10 @@ export function ChatPanel({ document }: { document: DocumentSummary }) {
             )}
 
             {message.status === "done" && (
-              <AnswerBubble message={message} />
+              <AnswerBubble
+                message={message}
+                onCitationSelect={onCitationSelect}
+              />
             )}
           </div>
         ))}
@@ -173,7 +227,7 @@ export function ChatPanel({ document }: { document: DocumentSummary }) {
         <button
           type="submit"
           disabled={isAsking}
-          className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+          className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-900"
         >
           {isAsking ? "..." : "Send"}
         </button>

@@ -13,13 +13,13 @@ class BM25Retriever:
     def retrieve(
         self,
         query: str,
-        document_id: str,
+        session_id: str,
         limit: int = 5,
     ) -> list[RetrievalResult]:
 
         results = self.index.search(
             query=query,
-            document_id=document_id,
+            session_id=session_id,
             limit=limit,
         )
 

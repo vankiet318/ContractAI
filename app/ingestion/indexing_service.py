@@ -3,6 +3,7 @@ from app.ingestion.adaptive_chunker import AdaptiveChunker
 from app.ingestion.feature_extractor import FeatureExtractor
 from app.ingestion.hierarchy_builder import HierarchyBuilder
 from app.ingestion.layout_analyzer import LayoutAnalyzer
+from app.ingestion.models import ChunkIdentity
 from app.ingestion.pdf_parser import PDFParser
 from app.ingestion.schema_inference import SchemaInference
 from app.ingestion.structure_detector import StructureDetector
@@ -40,6 +41,7 @@ class DocumentIndexingService:
         self,
         file_path: str,
         document_id: str,
+        session_id: str,
     ) -> int:
 
         # 1. Parse PDF
@@ -79,7 +81,10 @@ class DocumentIndexingService:
         # 7. Create retrieval chunks
         chunks = self.chunker.chunk(
             roots=tree,
-            document_id=document_id,
+            identity=ChunkIdentity(
+                document_id=document_id,
+                session_id=session_id,
+            ),
         )
 
         if not chunks:

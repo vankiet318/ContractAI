@@ -1,12 +1,20 @@
 import { apiClient } from "./client";
-import type { QueryResponse } from "../types";
+import type { ChatMessageRecord, QueryResponse } from "../types";
 
-export function queryDocument(
-  documentId: string,
+export function listMessages(
+  sessionId: string,
+): Promise<ChatMessageRecord[]> {
+  return apiClient.request<ChatMessageRecord[]>(
+    `/sessions/${sessionId}/messages`,
+  );
+}
+
+export function querySession(
+  sessionId: string,
   question: string,
 ): Promise<QueryResponse> {
   return apiClient.request<QueryResponse>(
-    `/documents/${documentId}/query`,
+    `/sessions/${sessionId}/query`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

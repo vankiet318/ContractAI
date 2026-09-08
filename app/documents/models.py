@@ -12,6 +12,7 @@ class DocumentStatus(str, Enum):
 @dataclass
 class Document:
     document_id: str
+    session_id: str
     filename: str
     file_path: str
     status: DocumentStatus

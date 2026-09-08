@@ -8,3 +8,9 @@ sentence-transformers
 rank_bm25
 google-genai
 python-dotenv
+sqlalchemy
+psycopg2-binary
+alembic
+python-jose[cryptography]
+bcrypt
+email-validator
