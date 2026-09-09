@@ -14,9 +14,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && pip install -r requirements.txt
 
 COPY app ./app
+COPY alembic.ini .
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 RUN mkdir -p data/uploads
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["./entrypoint.sh"]

@@ -59,6 +59,11 @@ Environment variables (`.env`, at the project root):
 | `GEMINI_API_KEY` | - | Required. Gemini API key. |
 | `GEMINI_MODEL_NAME` | `gemini-3.6-flash` | Gemini model used for answer generation. |
 | `GEMINI_MAX_OUTPUT_TOKENS` | `4096` | Max output tokens per generation call. |
+| `DATABASE_URL` | - | Postgres connection string. Overridden inside Docker Compose. |
+| `JWT_SECRET_KEY` | - | Required. Secret used to sign session JWTs. |
+| `JWT_ALGORITHM` | `HS256` | JWT signing algorithm. |
+| `JWT_EXPIRE_MINUTES` | `60` | JWT expiry, in minutes. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of origins allowed to call the API. |
 
 ## Running the frontend (local)
 
@@ -72,10 +77,54 @@ npm run dev
 
 Runs on `http://localhost:5173` by default and calls the backend at the URL set in `frontend/.env` (`VITE_API_BASE_URL`, default `http://localhost:8000`).
 
-The backend's CORS configuration (`app/main.py`) currently allows only `http://localhost:5173`; update it if the frontend runs on a different origin.
+The backend's CORS configuration (`app/main.py`) reads allowed origins from `CORS_ALLOWED_ORIGINS` (comma-separated, defaults to `http://localhost:5173`); set it to match wherever the frontend is served.
+
+## Deploying to a Linux server
+
+Requirements on the server: Docker + the Docker Compose plugin, and a domain name pointed at the server's IP (for HTTPS).
+
+1. Clone the repo onto the server and `cd` into it.
+2. Copy `.env` (see the variable table above) and fill in `GEMINI_API_KEY`, `JWT_SECRET_KEY`, and set `CORS_ALLOWED_ORIGINS` to the frontend's public origin (e.g. `https://contractai.yourdomain.com`).
+3. Export the two build-time variables used by `docker-compose.yml` before building, so the frontend bakes in the right API URL:
+
+```
+export CORS_ALLOWED_ORIGINS=https://contractai.yourdomain.com
+export VITE_API_BASE_URL=https://api.yourdomain.com
+docker compose up -d --build
+```
+
+   (Also add both as persistent `KEY=value` lines in a `.env` file at the repo root — Compose reads `.env` automatically, so you don't need to `export` them on every login.)
+
+4. `docker compose up` runs the backend's `entrypoint.sh`, which applies Alembic migrations (`alembic upgrade head`) automatically before starting Uvicorn — no manual migration step needed.
+5. All 4 containers (`qdrant`, `postgres`, `backend`, `frontend`) bind only to `127.0.0.1` on the host — they are not reachable from the internet directly. Put a reverse proxy in front to terminate HTTPS and route public traffic:
+   - `api.yourdomain.com` → `127.0.0.1:8000` (backend)
+   - `contractai.yourdomain.com` → `127.0.0.1:8080` (frontend)
+
+   Install Nginx + Certbot on the host (outside Docker) for this — it's the simplest way to keep certificate renewal working:
+
+   ```
+   sudo apt install nginx certbot python3-certbot-nginx
+   # add two server blocks (api.yourdomain.com -> :8000, contractai.yourdomain.com -> :8080)
+   sudo certbot --nginx -d api.yourdomain.com -d contractai.yourdomain.com
+   ```
+
+6. To redeploy after new commits: `git pull && docker compose up -d --build`.
+
+### CI/CD (GitHub Actions)
+
+`.github/workflows/deploy.yml` runs the test suite on every push/PR to `main`, and on a successful push to `main` SSHes into the server and re-deploys (`git pull && docker compose up -d --build`). It expects the server to already have the repo cloned with a working `.env` in place (steps 1–3 above, done once manually).
+
+Add these repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Description |
+|---|---|
+| `DEPLOY_HOST` | Server IP or hostname. |
+| `DEPLOY_USER` | SSH user with Docker permissions on the server. |
+| `DEPLOY_SSH_KEY` | Private key for that user (add the matching public key to the server's `~/.ssh/authorized_keys`). |
+| `DEPLOY_PORT` | SSH port, optional (defaults to `22`). |
+| `DEPLOY_PATH` | Absolute path to the cloned repo on the server, e.g. `/home/deploy/ContractAI`. |
 
 ## Known limitations
 
 - Document metadata (`app/documents/repository.py`) is stored in memory and is lost on backend restart. Vector data in Qdrant persists independently.
 - The BM25 index is also in-memory and rebuilt only when a document is (re-)indexed.
-- No authentication or per-user data isolation yet; any client that can reach the API can read/query any document.
