@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listMessages, querySession } from "../api/query";
 import { ApiError } from "../api/client";
+import { generateId } from "../lib/id";
 import type { ChatMessage, Citation } from "../types";
 import { CitationList } from "./CitationList";
 import { TypingIndicator } from "./TypingIndicator";
@@ -120,7 +121,7 @@ export function ChatPanel({
     const trimmed = question.trim();
     if (!trimmed || isAsking) return;
 
-    const messageId = crypto.randomUUID();
+    const messageId = generateId();
 
     setMessages((previous) => [
       ...previous,
