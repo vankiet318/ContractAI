@@ -1,9 +1,9 @@
-from typing import Callable
+from typing import Callable, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.messages.service import ChatMessageService
+from app.messages.service import ChatMessageService, MessageNotFoundError
 from app.query.use_case import NoReadyDocumentsError, QuerySessionUseCase
 from app.sessions.models import ChatSession
 from app.sessions.title_service import SessionTitleService
@@ -28,6 +28,7 @@ class CitationResponse(BaseModel):
 
 
 class QueryResponse(BaseModel):
+    message_id: str
     question: str
     answer: str
     citations: list[CitationResponse]
@@ -40,6 +41,11 @@ class ChatMessageResponse(BaseModel):
     answer: str
     citations: list[CitationResponse]
     created_at: str
+    feedback: Literal["like", "dislike"] | None = None
+
+
+class FeedbackRequest(BaseModel):
+    feedback: Literal["like", "dislike"] | None = None
 
 
 def create_query_router(
@@ -71,9 +77,32 @@ def create_query_router(
                     for citation in message.citations
                 ],
                 created_at=message.created_at.isoformat(),
+                feedback=message.feedback,
             )
             for message in messages
         ]
+
+    @router.patch(
+        "/{session_id}/messages/{message_id}/feedback",
+        status_code=204,
+    )
+    def set_message_feedback(
+        session_id: str,
+        message_id: str,
+        request: FeedbackRequest,
+        session: ChatSession = Depends(get_owned_session),
+    ):
+        try:
+            message_service.set_feedback(
+                session_id=session_id,
+                message_id=message_id,
+                feedback=request.feedback,
+            )
+        except MessageNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail="Message not found",
+            )
 
     @router.post(
         "/{session_id}/query",
@@ -116,6 +145,7 @@ def create_query_router(
         ]
 
         return QueryResponse(
+            message_id=result.message_id,
             question=request.question,
             answer=result.answer,
             citations=citation_response,

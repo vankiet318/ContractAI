@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from app.documents.models import DocumentStatus
 from app.documents.service import DocumentService
-from app.generation.base import LLM
+from app.generation.base import LLM, ConversationTurn
 from app.generation.citation_builder import Citation, CitationBuilder
 from app.generation.context_builder import ContextBuilder
 from app.generation.prompt_builder import PromptBuilder
@@ -28,6 +28,7 @@ class NoReadyDocumentsError(Exception):
 
 @dataclass
 class QueryAnswer:
+    message_id: str
     answer: str
     citations: list[Citation]
 
@@ -46,6 +47,7 @@ class QuerySessionUseCase:
         citation_builder: CitationBuilder,
         candidate_limit: int,
         limit: int,
+        max_history_turns: int = 5,
     ):
         self.document_service = document_service
         self.message_service = message_service
@@ -57,6 +59,7 @@ class QuerySessionUseCase:
         self.citation_builder = citation_builder
         self.candidate_limit = candidate_limit
         self.limit = limit
+        self.max_history_turns = max_history_turns
 
     def execute(
         self,
@@ -73,7 +76,7 @@ class QuerySessionUseCase:
             top_k=top_k,
         )
 
-        self.message_service.create(
+        saved_message = self.message_service.create(
             session_id=session_id,
             question=question,
             answer=answer.answer,
@@ -82,6 +85,8 @@ class QuerySessionUseCase:
                 for citation in answer.citations
             ],
         )
+
+        answer.message_id = saved_message.message_id
 
         return answer
 
@@ -100,7 +105,11 @@ class QuerySessionUseCase:
         )
 
         if not candidates:
-            return QueryAnswer(answer=NO_ANSWER_MESSAGE, citations=[])
+            return QueryAnswer(
+                message_id="",
+                answer=NO_ANSWER_MESSAGE,
+                citations=[],
+            )
 
         results = self.reranking_service.rerank(
             query=question,
@@ -109,7 +118,11 @@ class QuerySessionUseCase:
         )
 
         if not results:
-            return QueryAnswer(answer=NO_ANSWER_MESSAGE, citations=[])
+            return QueryAnswer(
+                message_id="",
+                answer=NO_ANSWER_MESSAGE,
+                citations=[],
+            )
 
         context_items = self.context_builder.build(results)
         context = self.context_builder.format(context_items)
@@ -119,11 +132,23 @@ class QuerySessionUseCase:
             context=context,
         )
 
-        answer = self.llm.generate(prompt)
+        history = self._load_history(session_id)
+
+        answer = self.llm.generate(prompt, history=history)
 
         citations = self.citation_builder.build(results)
 
-        return QueryAnswer(answer=answer, citations=citations)
+        return QueryAnswer(message_id="", answer=answer, citations=citations)
+
+    def _load_history(self, session_id: str) -> list[ConversationTurn]:
+        past_messages = self.message_service.list_by_session(session_id)
+
+        recent_messages = past_messages[-self.max_history_turns:]
+
+        return [
+            ConversationTurn(question=message.question, answer=message.answer)
+            for message in recent_messages
+        ]
 
     def _ensure_has_ready_document(self, session_id: str) -> None:
         documents = self.document_service.list_by_session(session_id)

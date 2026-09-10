@@ -1,7 +1,8 @@
+import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { listMessages, querySession } from "../api/query";
+import { listMessages, querySession, setMessageFeedback } from "../api/query";
 import { ApiError } from "../api/client";
-import type { ChatMessage, Citation } from "../types";
+import type { ChatMessage, Citation, MessageFeedback } from "../types";
 import { CitationList } from "./CitationList";
 import { TypingIndicator } from "./TypingIndicator";
 import { TypewriterMarkdown } from "./TypewriterMarkdown";
@@ -31,12 +32,78 @@ function useThinkingLabel(isActive: boolean): string {
   return THINKING_LABELS[index];
 }
 
+const FEEDBACK_THANKS_DURATION_MS = 2000;
+
+function FeedbackButtons({
+  initialFeedback,
+  disabled,
+  onFeedback,
+}: {
+  initialFeedback: MessageFeedback | null;
+  disabled: boolean;
+  onFeedback: (feedback: MessageFeedback) => void;
+}) {
+  const [isSubmitted, setIsSubmitted] = useState(initialFeedback !== null);
+  const [showThanks, setShowThanks] = useState(false);
+
+  useEffect(() => {
+    if (!showThanks) return;
+
+    const timer = setTimeout(
+      () => setShowThanks(false),
+      FEEDBACK_THANKS_DURATION_MS,
+    );
+
+    return () => clearTimeout(timer);
+  }, [showThanks]);
+
+  const submit = (value: MessageFeedback) => {
+    if (disabled || isSubmitted) return;
+    onFeedback(value);
+    setIsSubmitted(true);
+    setShowThanks(true);
+  };
+
+  if (showThanks) {
+    return (
+      <p className="mt-2 text-xs text-slate-500">Cảm ơn bạn đã phản hồi!</p>
+    );
+  }
+
+  if (isSubmitted) return null;
+
+  return (
+    <div className="mt-2 flex items-center gap-1">
+      <button
+        type="button"
+        title="Câu trả lời hữu ích"
+        disabled={disabled}
+        onClick={() => submit("like")}
+        className="rounded p-1 text-slate-400 hover:bg-slate-200 disabled:opacity-50"
+      >
+        <ThumbsUp className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        title="Câu trả lời chưa tốt"
+        disabled={disabled}
+        onClick={() => submit("dislike")}
+        className="rounded p-1 text-slate-400 hover:bg-slate-200 disabled:opacity-50"
+      >
+        <ThumbsDown className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 function AnswerBubble({
   message,
   onCitationSelect,
+  onFeedback,
 }: {
   message: ChatMessage;
   onCitationSelect: (citation: Citation) => void;
+  onFeedback: (feedback: MessageFeedback) => void;
 }) {
   const [isRevealed, setIsRevealed] = useState(!message.animate);
 
@@ -52,10 +119,17 @@ function AnswerBubble({
         />
       </div>
       {isRevealed && (
-        <CitationList
-          citations={message.citations}
-          onSelect={onCitationSelect}
-        />
+        <>
+          <CitationList
+            citations={message.citations}
+            onSelect={onCitationSelect}
+          />
+          <FeedbackButtons
+            initialFeedback={message.feedback}
+            disabled={message.messageId === null}
+            onFeedback={onFeedback}
+          />
+        </>
       )}
     </div>
   );
@@ -89,11 +163,13 @@ export function ChatPanel({
         setMessages(
           history.map((record) => ({
             id: record.message_id,
+            messageId: record.message_id,
             question: record.question,
             status: "done",
             answer: record.answer,
             citations: record.citations,
             errorMessage: null,
+            feedback: record.feedback,
             animate: false,
           })),
         );
@@ -126,11 +202,13 @@ export function ChatPanel({
       ...previous,
       {
         id: messageId,
+        messageId: null,
         question: trimmed,
         status: "pending",
         answer: null,
         citations: [],
         errorMessage: null,
+        feedback: null,
         animate: true,
       },
     ]);
@@ -145,6 +223,7 @@ export function ChatPanel({
           message.id === messageId
             ? {
                 ...message,
+                messageId: response.message_id,
                 status: "done",
                 answer: response.answer,
                 citations: response.citations,
@@ -172,6 +251,15 @@ export function ChatPanel({
     } finally {
       setIsAsking(false);
     }
+  };
+
+  const handleFeedback = (message: ChatMessage, feedback: MessageFeedback) => {
+    if (!message.messageId) return;
+
+    setMessageFeedback(sessionId, message.messageId, feedback).catch(() => {
+      // Best-effort: the thank-you toast has already shown, no UI state
+      // depends on this succeeding.
+    });
   };
 
   return (
@@ -206,6 +294,7 @@ export function ChatPanel({
               <AnswerBubble
                 message={message}
                 onCitationSelect={onCitationSelect}
+                onFeedback={(feedback) => handleFeedback(message, feedback)}
               />
             )}
           </div>
@@ -216,7 +305,7 @@ export function ChatPanel({
 
       <form
         onSubmit={handleSubmit}
-        className="p-4 border-t border-slate-200 flex gap-2"
+        className="p-2 flex gap-2"
       >
         <input
           value={question}

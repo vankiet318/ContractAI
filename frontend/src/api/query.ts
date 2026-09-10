@@ -1,5 +1,9 @@
 import { apiClient } from "./client";
-import type { ChatMessageRecord, QueryResponse } from "../types";
+import type {
+  ChatMessageRecord,
+  MessageFeedback,
+  QueryResponse,
+} from "../types";
 
 export function listMessages(
   sessionId: string,
@@ -19,6 +23,21 @@ export function querySession(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
+    },
+  );
+}
+
+export function setMessageFeedback(
+  sessionId: string,
+  messageId: string,
+  feedback: MessageFeedback | null,
+): Promise<void> {
+  return apiClient.request<void>(
+    `/sessions/${sessionId}/messages/${messageId}/feedback`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feedback }),
     },
   );
 }

@@ -3,11 +3,6 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { fetchDocumentFileBlob } from "../api/documents";
-import {
-  PREVIEW_HIGHLIGHT_CLASS,
-  PREVIEW_HIGHLIGHT_DURATION_MS,
-} from "../constants";
-import { findSpanForSnippet } from "../lib/snippetMatch";
 import type { Citation } from "../types";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -28,7 +23,23 @@ export function DocumentPreviewPanel({
   const [error, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(citation.page_start);
+  const [pageWidth, setPageWidth] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const CONTAINER_PADDING_PX = 16;
+
+    const observer = new ResizeObserver(([entry]) => {
+      setPageWidth(entry.contentRect.width - CONTAINER_PADDING_PX);
+    });
+
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -49,31 +60,8 @@ export function DocumentPreviewPanel({
     };
   }, [sessionId, citation.document_id, citation.page_start, citation.chunk_id]);
 
-  const handleTextLayerSuccess = () => {
-    if (pageNumber !== citation.page_start) return;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const spans = Array.from(
-      container.querySelectorAll(
-        ".react-pdf__Page__textContent span",
-      ),
-    ) as HTMLSpanElement[];
-
-    const match = findSpanForSnippet(spans, citation.text_snippet);
-    if (!match) return;
-
-    match.scrollIntoView({ behavior: "smooth", block: "center" });
-    match.classList.add(PREVIEW_HIGHLIGHT_CLASS);
-
-    setTimeout(() => {
-      match.classList.remove(PREVIEW_HIGHLIGHT_CLASS);
-    }, PREVIEW_HIGHLIGHT_DURATION_MS);
-  };
-
   return (
-    <aside className="w-[420px] shrink-0 border-l border-slate-200 flex flex-col h-full">
+    <aside className="w-[640px] shrink-0 border-l border-slate-200 flex flex-col h-full">
       <header className="flex items-center justify-between px-4 py-2 border-b border-slate-200">
         <div className="flex items-center gap-2">
           <button
@@ -123,8 +111,8 @@ export function DocumentPreviewPanel({
           >
             <Page
               pageNumber={pageNumber}
+              width={pageWidth ?? undefined}
               renderAnnotationLayer={false}
-              onRenderTextLayerSuccess={handleTextLayerSuccess}
             />
           </Document>
         )}
