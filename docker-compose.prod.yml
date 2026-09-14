@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: contractai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: contractai
+      POSTGRES_USER: contractai
+      POSTGRES_PASSWORD: contractai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: contractai-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://contractai:contractai@postgres:5432/contractai
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  hf_cache:
