@@ -13,12 +13,12 @@ RAG system for querying Vietnamese contract PDFs. Upload a contract, ask questio
 5. Walk the blocks in order and turn them into a flat list of nodes: a heading starts a new node, non-heading text is appended as the body of the current node.
 6. Build a hierarchy out of that flat list using the numbering level of each node (a level-2 node becomes a child of the nearest preceding level-1 node, and so on).
 7. Walk the hierarchy and split it into retrieval-sized chunks: each chunk keeps its section number/title as context, long sections are split by paragraph, then sentence, then raw character count as a fallback, with some character overlap between adjacent chunks so context isn't cut off mid-thought.
-8. Embed every chunk and upsert it into the vector database; also index the same chunks into an in-memory keyword (BM25) index.
+8. Run every chunk through BGE-M3 once to get two vectors: a dense embedding (meaning) and a sparse lexical-weight vector (which tokens matter, e.g. clause numbers, amounts, names). Both are upserted into the same Qdrant point.
 
 ### Answering a question
 
 1. Embed the question and run a dense (semantic) similarity search against the vector database, scoped to the target document.
-2. Run a keyword (BM25) search against the same document's chunks.
+2. Run a keyword-style search with the question's sparse vector against the same Qdrant collection (dot product over shared tokens).
 3. Fuse both ranked lists into one using Reciprocal Rank Fusion (a chunk's fused score is the sum of `1 / (k + rank)` across the lists it appears in, so it rewards chunks that rank well in either method).
 4. Rerank the fused candidates with a cross-encoder that scores the query against each candidate chunk directly (more accurate, but too slow to run over the whole document, hence only applied to the fused shortlist).
 5. Take the top-ranked chunks and build a prompt: the chunks as context, the question, and instructions to answer only from that context and say so when the context is insufficient.
@@ -28,7 +28,7 @@ Document upload and question-answering both happen synchronously within a single
 
 ## Models
 
-- Embedding: `BAAI/bge-m3` (multilingual dense embeddings, good Vietnamese support).
+- Embedding: `BAAI/bge-m3` (multilingual, good Vietnamese support). Used for both the dense vector and the sparse lexical weights (via the model's `sparse_linear.pt` head), so `EMBEDDING_MODEL_NAME` must point to BGE-M3.
 - Reranker: `BAAI/bge-reranker-v2-m3` (cross-encoder).
 - LLM: Gemini (`gemini-3.6-flash` by default), via the free-tier API.
 
@@ -109,22 +109,3 @@ docker compose up -d --build
    ```
 
 6. To redeploy after new commits: `git pull && docker compose up -d --build`.
-
-### CI/CD (GitHub Actions)
-
-`.github/workflows/deploy.yml` runs the test suite on every push/PR to `main`, and on a successful push to `main` SSHes into the server and re-deploys (`git pull && docker compose up -d --build`). It expects the server to already have the repo cloned with a working `.env` in place (steps 1–3 above, done once manually).
-
-Add these repository secrets (Settings → Secrets and variables → Actions):
-
-| Secret | Description |
-|---|---|
-| `DEPLOY_HOST` | Server IP or hostname. |
-| `DEPLOY_USER` | SSH user with Docker permissions on the server. |
-| `DEPLOY_SSH_KEY` | Private key for that user (add the matching public key to the server's `~/.ssh/authorized_keys`). |
-| `DEPLOY_PORT` | SSH port, optional (defaults to `22`). |
-| `DEPLOY_PATH` | Absolute path to the cloned repo on the server, e.g. `/home/deploy/ContractAI`. |
-
-## Known limitations
-
-- Document metadata (`app/documents/repository.py`) is stored in memory and is lost on backend restart. Vector data in Qdrant persists independently.
-- The BM25 index is also in-memory and rebuilt only when a document is (re-)indexed.

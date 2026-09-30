@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from app.documents.service import DocumentService
-from app.retrieval.bm25_index import BM25Index
 from app.vectorstore.qdrant_repository import QdrantRepository
 
 
@@ -11,11 +10,9 @@ class DocumentDeletionService:
         self,
         document_service: DocumentService,
         vector_store: QdrantRepository,
-        bm25_index: BM25Index,
     ):
         self.document_service = document_service
         self.vector_store = vector_store
-        self.bm25_index = bm25_index
 
     def delete(self, document_id: str, session_id: str) -> None:
 
@@ -27,10 +24,5 @@ class DocumentDeletionService:
         Path(document.file_path).unlink(missing_ok=True)
 
         self.vector_store.delete_by_document(document_id)
-
-        self.bm25_index.delete_document(
-            session_id=session_id,
-            document_id=document_id,
-        )
 
         self.document_service.delete(document_id)

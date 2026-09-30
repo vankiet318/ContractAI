@@ -5,7 +5,6 @@ pymupdf
 pytest
 qdrant-client
 sentence-transformers
-rank_bm25
 google-genai
 python-dotenv
 sqlalchemy

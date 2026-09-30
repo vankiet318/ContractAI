@@ -1,13 +1,20 @@
-from app.embedding.base import EmbeddingModel
+from app.embedding.base import SparseEmbeddingModel
 from app.retrieval.models import RetrievalResult
 from app.vectorstore.qdrant_repository import QdrantRepository
 
 
-class DenseRetriever:
+class SparseRetriever:
+    """
+    Keyword-style retrieval over the sparse (lexical weight) vectors
+    stored in Qdrant. Replaces the old in-memory BM25 index: scores are
+    the dot product of query and chunk token weights, so chunks sharing
+    rare, high-weight tokens with the query (clause numbers, amounts,
+    names) rank first.
+    """
 
     def __init__(
         self,
-        embedding_model: EmbeddingModel,
+        embedding_model: SparseEmbeddingModel,
         vector_store: QdrantRepository,
     ):
         self.embedding_model = embedding_model
@@ -26,18 +33,15 @@ class DenseRetriever:
         if not query:
             return []
 
-        # 1. Embed query
-        vector = self.embedding_model.embed([query])[0]
+        vector = self.embedding_model.embed_sparse([query])[0]
 
-        # 2. Search vector database
-        points = self.vector_store.search_dense(
+        points = self.vector_store.search_sparse(
             vector=vector,
             limit=limit,
             document_id=document_id,
             session_id=session_id,
         )
 
-        # 3. Convert DB result → application model
         return [
             RetrievalResult.from_payload(
                 payload=point.payload or {},

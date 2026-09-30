@@ -37,7 +37,7 @@ from app.ingestion.hierarchy_builder import HierarchyBuilder
 from app.ingestion.adaptive_chunker import AdaptiveChunker
 from app.ingestion.indexing_service import DocumentIndexingService
 
-from app.embedding.sentence_transformer import SentenceTransformerEmbedding
+from app.embedding.bge_m3 import BGEM3Embedding
 from app.vectorstore.qdrant_repository import QdrantRepository
 
 from app.documents.deletion_service import DocumentDeletionService
@@ -45,8 +45,7 @@ from app.documents.repository import DocumentRepository
 from app.documents.service import DocumentService
 
 from app.retrieval.dense_retriever import DenseRetriever
-from app.retrieval.bm25_index import BM25Index
-from app.retrieval.bm25_retriever import BM25Retriever
+from app.retrieval.sparse_retriever import SparseRetriever
 from app.retrieval.rrf import RRFFusion
 from app.retrieval.hybrid_retriever import HybridRetriever
 
@@ -86,7 +85,7 @@ chunker = AdaptiveChunker(
     overlap_chars=chunking_config.overlap_chars,
 )
 
-embedding_model = SentenceTransformerEmbedding(
+embedding_model = BGEM3Embedding(
     model_name=embedding_config.model_name,
     device=embedding_config.device,
     batch_size=embedding_config.batch_size,
@@ -99,8 +98,6 @@ vector_store = QdrantRepository(
     collection_name=qdrant_config.collection_name,
 )
 
-bm25_index = BM25Index()
-
 indexing_service = DocumentIndexingService(
     parser=pdf_parser,
     layout_analyzer=layout_analyzer,
@@ -111,7 +108,6 @@ indexing_service = DocumentIndexingService(
     chunker=chunker,
     embedding_model=embedding_model,
     vector_store=vector_store,
-    bm25_index=bm25_index,
 )
 
 user_repository = UserRepository()
@@ -136,13 +132,11 @@ session_deletion_service = SessionDeletionService(
     session_service=session_service,
     document_service=document_service,
     vector_store=vector_store,
-    bm25_index=bm25_index,
 )
 
 document_deletion_service = DocumentDeletionService(
     document_service=document_service,
     vector_store=vector_store,
-    bm25_index=bm25_index,
 )
 
 message_repository = ChatMessageRepository()
@@ -163,8 +157,9 @@ dense_retriever = DenseRetriever(
     vector_store=vector_store,
 )
 
-bm25_retriever = BM25Retriever(
-    index=bm25_index,
+sparse_retriever = SparseRetriever(
+    embedding_model=embedding_model,
+    vector_store=vector_store,
 )
 
 
@@ -172,7 +167,7 @@ rrf = RRFFusion(k=retrieval_config.rrf_k)
 
 hybrid_retriever = HybridRetriever(
     dense_retriever=dense_retriever,
-    bm25_retriever=bm25_retriever,
+    sparse_retriever=sparse_retriever,
     rrf=rrf,
 )
 

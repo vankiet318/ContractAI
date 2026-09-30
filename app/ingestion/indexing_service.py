@@ -1,13 +1,12 @@
-from app.embedding.base import EmbeddingModel
+from app.embedding.bge_m3 import BGEM3Embedding
 from app.ingestion.adaptive_chunker import AdaptiveChunker
 from app.ingestion.feature_extractor import FeatureExtractor
 from app.ingestion.hierarchy_builder import HierarchyBuilder
 from app.ingestion.layout_analyzer import LayoutAnalyzer
-from app.ingestion.models import ChunkIdentity
+from app.ingestion.models import ChunkIdentity, DocumentChunk
 from app.ingestion.pdf_parser import PDFParser
 from app.ingestion.schema_inference import SchemaInference
 from app.ingestion.structure_detector import StructureDetector
-from app.retrieval.bm25_index import BM25Index
 from app.vectorstore.qdrant_repository import QdrantRepository
 
 
@@ -22,9 +21,8 @@ class DocumentIndexingService:
         structure_detector: StructureDetector,
         hierarchy_builder: HierarchyBuilder,
         chunker: AdaptiveChunker,
-        embedding_model: EmbeddingModel,
+        embedding_model: BGEM3Embedding,
         vector_store: QdrantRepository,
-        bm25_index: BM25Index,
     ):
         self.parser = parser
         self.layout_analyzer = layout_analyzer
@@ -35,7 +33,6 @@ class DocumentIndexingService:
         self.chunker = chunker
         self.embedding_model = embedding_model
         self.vector_store = vector_store
-        self.bm25_index = bm25_index
 
     def index(
         self,
@@ -44,13 +41,30 @@ class DocumentIndexingService:
         session_id: str,
     ) -> int:
 
+        chunks = self.build_chunks(
+            file_path=file_path,
+            document_id=document_id,
+            session_id=session_id,
+        )
+
+        self.store_chunks(chunks)
+
+        return len(chunks)
+
+    def build_chunks(
+        self,
+        file_path: str,
+        document_id: str,
+        session_id: str,
+    ) -> list[DocumentChunk]:
+
         # 1. Parse PDF
         blocks = self.parser.parse(
             file_path
         )
 
         if not blocks:
-            return 0
+            return []
 
         # 2. Analyze layout
         blocks = self.layout_analyzer.analyze(
@@ -79,7 +93,7 @@ class DocumentIndexingService:
         )
 
         # 7. Create retrieval chunks
-        chunks = self.chunker.chunk(
+        return self.chunker.chunk(
             roots=tree,
             identity=ChunkIdentity(
                 document_id=document_id,
@@ -87,16 +101,21 @@ class DocumentIndexingService:
             ),
         )
 
-        if not chunks:
-            return 0
+    def store_chunks(
+        self,
+        chunks: list[DocumentChunk],
+    ) -> None:
 
-        # 8. Generate embeddings
+        if not chunks:
+            return
+
+        # 8. Generate dense + sparse embeddings (one model pass)
         texts = [
             chunk.text
             for chunk in chunks
         ]
 
-        vectors = self.embedding_model.embed(
+        vectors, sparse_vectors = self.embedding_model.embed_hybrid(
             texts
         )
 
@@ -111,11 +130,5 @@ class DocumentIndexingService:
         self.vector_store.upsert(
             chunks=chunks,
             vectors=vectors,
+            sparse_vectors=sparse_vectors,
         )
-
-        # 11. Build BM25 index
-        self.bm25_index.build(
-            documents=chunks,
-        )
-
-        return len(chunks)
