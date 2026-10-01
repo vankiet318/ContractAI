@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { uploadDocument } from "../api/documents";
-import { ApiError } from "../api/client";
+import { toErrorMessage } from "../api/client";
+import { useToast } from "../hooks/useToast";
 
 export function UploadButton({
   sessionId,
@@ -11,7 +12,7 @@ export function UploadButton({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -20,15 +21,22 @@ export function UploadButton({
     if (!file) return;
 
     setIsUploading(true);
-    setError(null);
 
     try {
-      await uploadDocument(sessionId, file);
+      const uploaded = await uploadDocument(sessionId, file);
       onUploaded();
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Upload failed",
-      );
+
+      // Indexing errors come back as a FAILED document, not an HTTP error.
+      if (uploaded.status === "failed") {
+        showToast(
+          uploaded.error_message ?? `Không xử lý được "${file.name}".`,
+          "error",
+        );
+      } else {
+        showToast(`Đã tải lên "${file.name}".`, "success");
+      }
+    } catch (error) {
+      showToast(toErrorMessage(error, "Tải lên thất bại."), "error");
     } finally {
       setIsUploading(false);
       event.target.value = "";
@@ -57,11 +65,6 @@ export function UploadButton({
         )}
         {isUploading ? "Đang xử lý..." : "+ Upload PDF"}
       </button>
-      {error && (
-        <p className="absolute right-0 top-full mt-1 w-48 text-xs text-red-600">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

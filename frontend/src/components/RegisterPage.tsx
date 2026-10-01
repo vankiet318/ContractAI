@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { register } from "../api/auth";
-import { ApiError } from "../api/client";
+import { toErrorMessage } from "../api/client";
 
 export function RegisterPage({
   onSwitchToLogin,
@@ -23,7 +23,7 @@ export function RegisterPage({
       setIsDone(true);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Đăng ký thất bại",
+        toErrorMessage(err, "Đăng ký thất bại"),
       );
     } finally {
       setIsSubmitting(false);

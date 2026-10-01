@@ -1,13 +1,18 @@
 import type { DocumentSummary } from "../types";
+import { LoadErrorMessage } from "./LoadErrorMessage";
 import { StatusBadge } from "./StatusBadge";
 
 export function DocumentStatusList({
   documents,
   isLoading,
+  loadError,
+  onRetry,
   onDelete,
 }: {
   documents: DocumentSummary[];
   isLoading: boolean;
+  loadError: string | null;
+  onRetry: () => void;
   onDelete: (documentId: string) => void;
 }) {
   if (isLoading) {
@@ -16,6 +21,10 @@ export function DocumentStatusList({
         Đang tải danh sách tài liệu...
       </p>
     );
+  }
+
+  if (loadError) {
+    return <LoadErrorMessage message={loadError} onRetry={onRetry} />;
   }
 
   if (documents.length === 0) {

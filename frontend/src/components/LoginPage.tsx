@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ApiError } from "../api/client";
+import { toErrorMessage } from "../api/client";
 
 export function LoginPage({
   onLogin,
@@ -22,7 +22,7 @@ export function LoginPage({
       await onLogin(email, password);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Đăng nhập thất bại",
+        toErrorMessage(err, "Đăng nhập thất bại"),
       );
     } finally {
       setIsSubmitting(false);

@@ -1,8 +1,11 @@
 import type { ChatSessionSummary } from "../types";
+import { LoadErrorMessage } from "./LoadErrorMessage";
 
 interface SessionListProps {
   sessions: ChatSessionSummary[];
   isLoading: boolean;
+  loadError: string | null;
+  onRetry: () => void;
   selectedSessionId: string | null;
   onSelect: (sessionId: string) => void;
   onCreate: () => void;
@@ -13,6 +16,8 @@ interface SessionListProps {
 export function SessionList({
   sessions,
   isLoading,
+  loadError,
+  onRetry,
   selectedSessionId,
   onSelect,
   onCreate,
@@ -36,7 +41,11 @@ export function SessionList({
           <p className="p-3 text-sm text-slate-500">Đang tải...</p>
         )}
 
-        {!isLoading && sessions.length === 0 && (
+        {!isLoading && loadError && (
+          <LoadErrorMessage message={loadError} onRetry={onRetry} />
+        )}
+
+        {!isLoading && !loadError && sessions.length === 0 && (
           <p className="p-3 text-sm text-slate-500">
             Chưa có đoạn chat nào.
           </p>

@@ -1,22 +1,33 @@
 import { useCallback, useEffect, useState } from "react";
 import { deleteDocument, listDocuments } from "../api/documents";
+import { toErrorMessage } from "../api/client";
 import type { DocumentSummary } from "../types";
 
 export function useDocuments(sessionId: string) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const result = await listDocuments(sessionId);
     setDocuments(result);
-    setIsLoading(false);
+    setLoadError(null);
     return result;
   }, [sessionId]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setIsLoading(true);
-    refresh().catch(() => setIsLoading(false));
+
+    refresh()
+      .catch((error) =>
+        setLoadError(toErrorMessage(error, "Không tải được danh sách tài liệu.")),
+      )
+      .finally(() => setIsLoading(false));
   }, [refresh]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const remove = useCallback(
     async (documentId: string) => {
@@ -26,5 +37,5 @@ export function useDocuments(sessionId: string) {
     [sessionId, refresh],
   );
 
-  return { documents, isLoading, refresh, remove };
+  return { documents, isLoading, loadError, reload: load, refresh, remove };
 }

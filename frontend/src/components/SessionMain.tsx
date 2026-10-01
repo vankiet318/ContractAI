@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { toErrorMessage } from "../api/client";
 import { useDocuments } from "../hooks/useDocuments";
+import { useToast } from "../hooks/useToast";
 import type { Citation } from "../types";
 import { ChatPanel } from "./ChatPanel";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -18,7 +20,9 @@ export function SessionMain({
   sessionTitle: string;
   onTitleGenerated: (title: string) => void;
 }) {
-  const { documents, isLoading, refresh, remove } = useDocuments(sessionId);
+  const { showToast } = useToast();
+  const { documents, isLoading, loadError, reload, refresh, remove } =
+    useDocuments(sessionId);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("chat");
   const [previewCitation, setPreviewCitation] = useState<Citation | null>(
     null,
@@ -37,7 +41,14 @@ export function SessionMain({
     const documentId = documentPendingDeleteId;
     setDocumentPendingDeleteId(null);
 
-    await remove(documentId);
+    try {
+      await remove(documentId);
+    } catch (error) {
+      showToast(toErrorMessage(error, "Không xóa được tài liệu."), "error");
+      return;
+    }
+
+    showToast("Đã xóa tài liệu.", "success");
 
     setPreviewCitation((current) =>
       current?.document_id === documentId ? null : current,
@@ -96,6 +107,8 @@ export function SessionMain({
             <DocumentStatusList
               documents={documents}
               isLoading={isLoading}
+              loadError={loadError}
+              onRetry={reload}
               onDelete={setDocumentPendingDeleteId}
             />
           </div>

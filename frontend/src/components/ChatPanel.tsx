@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { listMessages, setMessageFeedback, streamQuery } from "../api/query";
-import { ApiError } from "../api/client";
+import { toErrorMessage } from "../api/client";
 import { MAX_QUESTION_LENGTH } from "../constants";
 import { generateId } from "../lib/id";
 import type { ChatMessage, Citation, MessageFeedback } from "../types";
 import { CitationList } from "./CitationList";
+import { LoadErrorMessage } from "./LoadErrorMessage";
 import { TypingIndicator } from "./TypingIndicator";
 
 const THINKING_LABELS = [
@@ -145,6 +146,8 @@ export function ChatPanel({
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoadAttempt, setHistoryLoadAttempt] = useState(0);
   const [question, setQuestion] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const thinkingLabel = useThinkingLabel(isAsking);
@@ -154,6 +157,7 @@ export function ChatPanel({
     let isCancelled = false;
 
     setIsLoadingHistory(true);
+    setHistoryError(null);
 
     listMessages(sessionId)
       .then((history) => {
@@ -172,8 +176,12 @@ export function ChatPanel({
           })),
         );
       })
-      .catch(() => {
-        if (!isCancelled) setMessages([]);
+      .catch((error) => {
+        if (isCancelled) return;
+
+        setHistoryError(
+          toErrorMessage(error, "Không tải được lịch sử đoạn chat."),
+        );
       })
       .finally(() => {
         if (!isCancelled) setIsLoadingHistory(false);
@@ -182,7 +190,7 @@ export function ChatPanel({
     return () => {
       isCancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, historyLoadAttempt]);
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -241,7 +249,10 @@ export function ChatPanel({
       updateMessage((message) => ({
         ...message,
         status: "error",
-        errorMessage: err instanceof ApiError ? err.message : "Query failed",
+        errorMessage: toErrorMessage(
+          err,
+          "Không gửi được câu hỏi. Vui lòng thử lại.",
+        ),
       }));
     } finally {
       setIsAsking(false);
@@ -260,7 +271,14 @@ export function ChatPanel({
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {!isLoadingHistory && messages.length === 0 && (
+        {!isLoadingHistory && historyError && (
+          <LoadErrorMessage
+            message={historyError}
+            onRetry={() => setHistoryLoadAttempt((attempt) => attempt + 1)}
+          />
+        )}
+
+        {!isLoadingHistory && !historyError && messages.length === 0 && (
           <p className="text-sm text-slate-500">
             Đặt câu hỏi về các tài liệu trong đoạn chat này.
           </p>

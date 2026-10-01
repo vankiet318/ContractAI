@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toErrorMessage } from "./api/client";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { LoginPage } from "./components/LoginPage";
 import { RegisterPage } from "./components/RegisterPage";
@@ -7,11 +8,15 @@ import { SessionMain } from "./components/SessionMain";
 import { useAuth } from "./hooks/useAuth";
 import { useSelectedSessionId } from "./hooks/useSelectedSessionId";
 import { useSessions } from "./hooks/useSessions";
+import { useToast } from "./hooks/useToast";
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+  const { showToast } = useToast();
   const {
     sessions,
     isLoading,
+    loadError,
+    reload,
     create,
     remove,
     setSessionTitle,
@@ -30,8 +35,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   );
 
   const handleCreate = async () => {
-    const session = await create("Đoạn chat mới");
-    setSelectedSessionId(session.session_id);
+    try {
+      const session = await create("Đoạn chat mới");
+      setSelectedSessionId(session.session_id);
+    } catch (error) {
+      showToast(toErrorMessage(error, "Không tạo được đoạn chat."), "error");
+    }
   };
 
   const confirmDeleteSession = async () => {
@@ -40,7 +49,14 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     const sessionId = sessionPendingDeleteId;
     setSessionPendingDeleteId(null);
 
-    await remove(sessionId);
+    try {
+      await remove(sessionId);
+    } catch (error) {
+      showToast(toErrorMessage(error, "Không xóa được đoạn chat."), "error");
+      return;
+    }
+
+    showToast("Đã xóa đoạn chat.", "success");
 
     if (selectedSessionId === sessionId) {
       setSelectedSessionId(null);
@@ -52,6 +68,8 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       <SessionList
         sessions={sessions}
         isLoading={isLoading}
+        loadError={loadError}
+        onRetry={reload}
         selectedSessionId={selectedSessionId}
         onSelect={setSelectedSessionId}
         onCreate={handleCreate}

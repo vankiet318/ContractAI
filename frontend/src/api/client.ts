@@ -3,6 +3,9 @@ import { clearToken, getToken } from "./authStorage";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
+const NETWORK_ERROR_MESSAGE =
+  "Không kết nối được máy chủ. Vui lòng kiểm tra kết nối và thử lại.";
+
 export class ApiError extends Error {
   status: number;
 
@@ -35,9 +38,29 @@ async function throwApiError(response: Response): Promise<never> {
 
   const body = await response.json().catch(() => null);
   throw new ApiError(
-    readErrorDetail(body?.detail) ?? `Request failed: ${response.status}`,
+    readErrorDetail(body?.detail) ?? statusErrorMessage(response.status),
     response.status,
   );
+}
+
+function statusErrorMessage(status: number): string {
+  return `Có lỗi xảy ra (mã ${status}). Vui lòng thử lại.`;
+}
+
+/** Message for any caught error: the server's message when there is one,
+ * otherwise the caller's fallback. */
+export function toErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
+// fetch rejects (instead of returning a response) when the server is
+// unreachable; turn that into an ApiError so callers handle one type.
+async function send(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, withAuthHeaders(init));
+  } catch {
+    throw new ApiError(NETWORK_ERROR_MESSAGE, 0);
+  }
 }
 
 // FastAPI validation errors (422) send a list of {msg, ...} instead of a
@@ -56,10 +79,7 @@ async function request<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(
-    `${API_BASE_URL}${path}`,
-    withAuthHeaders(init),
-  );
+  const response = await send(path, init);
 
   if (!response.ok) {
     await throwApiError(response);
@@ -76,14 +96,11 @@ async function requestBlob(
   path: string,
   init?: RequestInit,
 ): Promise<Blob> {
-  const response = await fetch(
-    `${API_BASE_URL}${path}`,
-    withAuthHeaders(init),
-  );
+  const response = await send(path, init);
 
   if (!response.ok) {
     await handleUnauthorized(response);
-    throw new ApiError(`Request failed: ${response.status}`, response.status);
+    throw new ApiError(statusErrorMessage(response.status), response.status);
   }
 
   return response.blob();
@@ -103,10 +120,7 @@ async function requestEventStream(
   init: RequestInit,
   onEvent: (event: ServerSentEvent) => void,
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE_URL}${path}`,
-    withAuthHeaders(init),
-  );
+  const response = await send(path, init);
 
   if (!response.ok) {
     await throwApiError(response);
@@ -123,7 +137,7 @@ async function requestEventStream(
   let buffer = "";
 
   for (;;) {
-    const { value, done } = await reader.read();
+    const { value, done } = await readStreamChunk(reader);
     if (done) return;
 
     buffer += value;
@@ -135,6 +149,16 @@ async function requestEventStream(
       buffer = buffer.slice(boundary + EVENT_SEPARATOR.length);
       boundary = buffer.indexOf(EVENT_SEPARATOR);
     }
+  }
+}
+
+async function readStreamChunk(
+  reader: ReadableStreamDefaultReader<string>,
+): Promise<ReadableStreamReadResult<string>> {
+  try {
+    return await reader.read();
+  } catch {
+    throw new ApiError(NETWORK_ERROR_MESSAGE, 0);
   }
 }
 
