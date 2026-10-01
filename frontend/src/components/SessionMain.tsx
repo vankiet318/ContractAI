@@ -113,7 +113,7 @@ export function SessionMain({
       <ConfirmDialog
         open={documentPendingDelete !== undefined}
         title="Xóa tài liệu"
-        message={`Xóa "${documentPendingDelete?.filename}"? Toàn bộ embedding của file này trong Qdrant sẽ bị xóa vĩnh viễn và không thể khôi phục.`}
+        message={`Xóa "${documentPendingDelete?.filename}"? Tài liệu này sẽ bị xóa vĩnh viễn và không thể khôi phục.`}
         onConfirm={confirmDeleteDocument}
         onCancel={() => setDocumentPendingDeleteId(null)}
       />

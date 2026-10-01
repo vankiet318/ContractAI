@@ -25,7 +25,10 @@ export interface Citation {
   text_snippet: string;
 }
 
+export type MessageFeedback = "like" | "dislike";
+
 export interface QueryResponse {
+  message_id: string;
   question: string;
   answer: string;
   citations: Citation[];
@@ -38,17 +41,22 @@ export interface ChatMessageRecord {
   answer: string;
   citations: Citation[];
   created_at: string;
+  feedback: MessageFeedback | null;
 }
 
 export type ChatMessageStatus = "pending" | "done" | "error";
 
 export interface ChatMessage {
   id: string;
+  /** The backend message_id, used to submit feedback. Null until the
+   * query response (or history) supplies it. */
+  messageId: string | null;
   question: string;
   status: ChatMessageStatus;
   answer: string | null;
   citations: Citation[];
   errorMessage: string | null;
+  feedback: MessageFeedback | null;
   /** False for messages loaded from history, so they render instantly
    * instead of replaying the typewriter reveal animation. */
   animate: boolean;

@@ -12,8 +12,3 @@ button:not(:disabled) {
 button:disabled {
   cursor: not-allowed;
 }
-
-.preview-highlight {
-  background-color: rgba(250, 204, 21, 0.6) !important;
-  border-radius: 2px;
-}

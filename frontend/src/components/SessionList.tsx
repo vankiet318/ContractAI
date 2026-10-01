@@ -63,7 +63,7 @@ export function SessionList({
                 type="button"
                 onClick={() => onDelete(session.session_id)}
                 title="Xóa đoạn chat"
-                className="mr-2 h-5 w-5 shrink-0 rounded-full text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+                className="mr-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
               >
                 ×
               </button>

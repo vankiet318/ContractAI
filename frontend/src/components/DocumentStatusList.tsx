@@ -48,8 +48,8 @@ export function DocumentStatusList({
             <button
               type="button"
               onClick={() => onDelete(document.document_id)}
-              title="Xóa tài liệu (bao gồm embedding trong Qdrant)"
-              className="h-5 w-5 shrink-0 rounded-full text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+              title="Xóa tài liệu"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
             >
               ×
             </button>

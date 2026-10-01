@@ -2,8 +2,15 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from app.messages.models import ChatMessage
+from app.messages.models import ChatMessage, MessageFeedback
 from app.messages.repository import ChatMessageRepository
+
+
+class MessageNotFoundError(Exception):
+
+    def __init__(self, message_id: str):
+        super().__init__(f"Message not found: {message_id}")
+        self.message_id = message_id
 
 
 class ChatMessageService:
@@ -37,3 +44,18 @@ class ChatMessageService:
             self.repository.list_by_session(session_id),
             key=lambda message: message.created_at,
         )
+
+    def set_feedback(
+        self,
+        session_id: str,
+        message_id: str,
+        feedback: MessageFeedback | None,
+    ) -> None:
+        updated = self.repository.set_feedback(
+            session_id=session_id,
+            message_id=message_id,
+            feedback=feedback,
+        )
+
+        if not updated:
+            raise MessageNotFoundError(message_id)

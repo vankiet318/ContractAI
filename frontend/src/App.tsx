@@ -63,7 +63,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       <ConfirmDialog
         open={sessionPendingDelete !== undefined}
         title="Xóa đoạn chat"
-        message={`Xóa "${sessionPendingDelete?.title}"? Toàn bộ file, embedding trong Qdrant và lịch sử chat của đoạn chat này sẽ bị xóa vĩnh viễn.`}
+        message={`Xóa "${sessionPendingDelete?.title}"? Toàn bộ file và lịch sử chat của đoạn chat này sẽ bị xóa vĩnh viễn.`}
         onConfirm={confirmDeleteSession}
         onCancel={() => setSessionPendingDeleteId(null)}
       />

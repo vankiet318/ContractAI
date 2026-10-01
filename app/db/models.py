@@ -83,6 +83,10 @@ class ChatMessageORM(Base):
     answer: Mapped[str] = mapped_column(Text)
     citations: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     created_at: Mapped[datetime]
+    feedback: Mapped[str | None] = mapped_column(
+        String(16),
+        default=None,
+    )
 
     session: Mapped["SessionORM"] = relationship(
         back_populates="messages",
