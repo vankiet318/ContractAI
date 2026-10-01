@@ -1,4 +1,4 @@
-from app.embedding.bge_m3 import BGEM3Embedding
+from app.embedding.base import HybridEmbeddingModel
 from app.ingestion.adaptive_chunker import AdaptiveChunker
 from app.ingestion.feature_extractor import FeatureExtractor
 from app.ingestion.hierarchy_builder import HierarchyBuilder
@@ -21,7 +21,7 @@ class DocumentIndexingService:
         structure_detector: StructureDetector,
         hierarchy_builder: HierarchyBuilder,
         chunker: AdaptiveChunker,
-        embedding_model: BGEM3Embedding,
+        embedding_model: HybridEmbeddingModel,
         vector_store: QdrantRepository,
     ):
         self.parser = parser

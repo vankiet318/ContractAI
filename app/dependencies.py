@@ -166,6 +166,7 @@ sparse_retriever = SparseRetriever(
 rrf = RRFFusion(k=retrieval_config.rrf_k)
 
 hybrid_retriever = HybridRetriever(
+    embedding_model=embedding_model,
     dense_retriever=dense_retriever,
     sparse_retriever=sparse_retriever,
     rrf=rrf,

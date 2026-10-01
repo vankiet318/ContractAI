@@ -4,12 +4,12 @@ import torch
 from huggingface_hub import hf_hub_download
 from sentence_transformers import SentenceTransformer
 
-from .base import EmbeddingModel, SparseEmbedding, SparseEmbeddingModel
+from .base import HybridEmbeddingModel, SparseEmbedding
 
 SPARSE_HEAD_FILENAME = "sparse_linear.pt"
 
 
-class BGEM3Embedding(EmbeddingModel, SparseEmbeddingModel):
+class BGEM3Embedding(HybridEmbeddingModel):
     """
     Dense + sparse embeddings from a single BGE-M3 forward pass.
 

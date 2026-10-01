@@ -26,10 +26,23 @@ class DenseRetriever:
         if not query:
             return []
 
-        # 1. Embed query
         vector = self.embedding_model.embed([query])[0]
 
-        # 2. Search vector database
+        return self.search(
+            vector=vector,
+            limit=limit,
+            document_id=document_id,
+            session_id=session_id,
+        )
+
+    def search(
+        self,
+        vector: list[float],
+        limit: int = 5,
+        document_id: str | None = None,
+        session_id: str | None = None,
+    ) -> list[RetrievalResult]:
+
         points = self.vector_store.search_dense(
             vector=vector,
             limit=limit,
@@ -37,7 +50,6 @@ class DenseRetriever:
             session_id=session_id,
         )
 
-        # 3. Convert DB result → application model
         return [
             RetrievalResult.from_payload(
                 payload=point.payload or {},

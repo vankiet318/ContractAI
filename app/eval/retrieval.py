@@ -50,6 +50,7 @@ from app.generation.gemini_client import GeminiClient
 from app.ingestion.indexing_service import DocumentIndexingService
 from app.ingestion.models import DocumentChunk
 from app.retrieval.dense_retriever import DenseRetriever
+from app.retrieval.hybrid_retriever import HybridRetriever
 from app.retrieval.models import RetrievalResult
 from app.retrieval.sparse_retriever import SparseRetriever
 from app.vectorstore.qdrant_repository import QdrantRepository
@@ -198,9 +199,18 @@ def build_configs(
             session_id=EVAL_SESSION_ID,
         )
 
-    def fuse(*result_lists: list[RetrievalResult]) -> list[RetrievalResult]:
-        return deps.rrf.fuse(
-            result_lists=list(result_lists),
+    hybrid = HybridRetriever(
+        embedding_model=deps.embedding_model,
+        dense_retriever=dense,
+        sparse_retriever=sparse,
+        rrf=deps.rrf,
+    )
+
+    def hybrid_search(query: str) -> list[RetrievalResult]:
+        return hybrid.retrieve(
+            query=query,
+            session_id=EVAL_SESSION_ID,
+            candidate_limit=candidate_limit,
             limit=fused_limit,
         )
 
@@ -214,13 +224,11 @@ def build_configs(
     configs: dict[str, Search] = {
         "dense": dense_search,
         "sparse": sparse_search,
-        "dense+sparse": lambda q: fuse(dense_search(q), sparse_search(q)),
+        "dense+sparse": hybrid_search,
     }
 
     if with_rerank:
-        configs["dense+sparse+rerank"] = lambda q: rerank(
-            q, fuse(dense_search(q), sparse_search(q))
-        )
+        configs["dense+sparse+rerank"] = lambda q: rerank(q, hybrid_search(q))
 
     return configs
 
