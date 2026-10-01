@@ -9,7 +9,7 @@ from app.sessions.service import SessionService
 
 
 class CreateSessionRequest(BaseModel):
-    title: str = Field(default="New chat", min_length=1)
+    title: str = Field(default="New chat", min_length=1, max_length=255)
 
 
 class SessionResponse(BaseModel):

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Callable
 from uuid import uuid4
@@ -13,10 +14,43 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.documents.deletion_service import DocumentDeletionService
-from app.documents.models import Document
+from app.documents.models import PROCESSING_FAILED_MESSAGE, Document
 from app.documents.service import DocumentService
 from app.ingestion.indexing_service import DocumentIndexingService
 from app.sessions.models import ChatSession
+
+logger = logging.getLogger(__name__)
+
+UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+class UploadTooLargeError(Exception):
+    pass
+
+
+async def save_upload(
+    file: UploadFile,
+    destination: Path,
+    max_bytes: int,
+) -> None:
+    """
+    Stream the upload to disk, stopping as soon as it exceeds max_bytes so
+    an oversized file never fills the disk.
+    """
+    written = 0
+
+    with destination.open("wb") as buffer:
+        while chunk := await file.read(UPLOAD_CHUNK_BYTES):
+            written += len(chunk)
+
+            if written > max_bytes:
+                break
+
+            buffer.write(chunk)
+
+    if written > max_bytes:
+        destination.unlink(missing_ok=True)
+        raise UploadTooLargeError()
 
 
 def _get_owned_document(
@@ -42,6 +76,7 @@ def create_documents_router(
     deletion_service: DocumentDeletionService,
     get_owned_session: Callable[..., ChatSession],
     upload_dir: Path,
+    max_upload_mb: int,
 ) -> APIRouter:
 
     router = APIRouter()
@@ -52,7 +87,9 @@ def create_documents_router(
         file: UploadFile = File(...),
         session: ChatSession = Depends(get_owned_session),
     ):
-        if not file.filename.lower().endswith(".pdf"):
+        filename = file.filename or ""
+
+        if not filename.lower().endswith(".pdf"):
             raise HTTPException(
                 status_code=400,
                 detail="Only PDF files are supported",
@@ -65,14 +102,22 @@ def create_documents_router(
             / f"{document_id}.pdf"
         )
 
-        with file_path.open("wb") as buffer:
-            while chunk := await file.read(1024 * 1024):
-                buffer.write(chunk)
+        try:
+            await save_upload(
+                file=file,
+                destination=file_path,
+                max_bytes=max_upload_mb * 1024 * 1024,
+            )
+        except UploadTooLargeError:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File vượt quá giới hạn {max_upload_mb} MB.",
+            )
 
         document_service.create(
             document_id=document_id,
             session_id=session_id,
-            filename=file.filename,
+            filename=filename,
             file_path=str(file_path),
         )
 
@@ -86,10 +131,11 @@ def create_documents_router(
 
             document = document_service.mark_ready(document_id)
 
-        except Exception as error:
+        except Exception:
+            logger.exception("Indexing failed for document %s", document_id)
             document = document_service.mark_failed(
                 document_id=document_id,
-                error_message=str(error),
+                error_message=PROCESSING_FAILED_MESSAGE,
             )
 
         return {

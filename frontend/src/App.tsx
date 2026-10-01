@@ -5,6 +5,7 @@ import { RegisterPage } from "./components/RegisterPage";
 import { SessionList } from "./components/SessionList";
 import { SessionMain } from "./components/SessionMain";
 import { useAuth } from "./hooks/useAuth";
+import { useSelectedSessionId } from "./hooks/useSelectedSessionId";
 import { useSessions } from "./hooks/useSessions";
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
@@ -15,9 +16,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     remove,
     setSessionTitle,
   } = useSessions();
-  const [selectedSessionId, setSelectedSessionId] = useState<
-    string | null
-  >(null);
+  const [selectedSessionId, setSelectedSessionId] = useSelectedSessionId();
   const [sessionPendingDeleteId, setSessionPendingDeleteId] = useState<
     string | null
   >(null);

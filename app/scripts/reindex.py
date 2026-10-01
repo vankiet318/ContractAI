@@ -17,7 +17,7 @@ from app.dependencies import (
     indexing_service,
     vector_store,
 )
-from app.documents.models import DocumentStatus
+from app.documents.models import PROCESSING_FAILED_MESSAGE, DocumentStatus
 
 
 def main() -> None:
@@ -50,7 +50,7 @@ def main() -> None:
         except Exception as error:
             document_service.mark_failed(
                 document_id=document.document_id,
-                error_message=str(error),
+                error_message=PROCESSING_FAILED_MESSAGE,
             )
             print(f"FAILED   {document.filename}: {error}")
             continue

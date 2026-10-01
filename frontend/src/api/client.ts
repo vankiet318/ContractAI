@@ -35,9 +35,21 @@ async function throwApiError(response: Response): Promise<never> {
 
   const body = await response.json().catch(() => null);
   throw new ApiError(
-    body?.detail ?? `Request failed: ${response.status}`,
+    readErrorDetail(body?.detail) ?? `Request failed: ${response.status}`,
     response.status,
   );
+}
+
+// FastAPI validation errors (422) send a list of {msg, ...} instead of a
+// string; show the first message rather than "[object Object]".
+function readErrorDetail(detail: unknown): string | undefined {
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail) && typeof detail[0]?.msg === "string") {
+    return detail[0].msg.replace(/^Value error, /, "");
+  }
+
+  return undefined;
 }
 
 async function request<T>(

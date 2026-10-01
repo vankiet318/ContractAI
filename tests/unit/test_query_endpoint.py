@@ -37,6 +37,7 @@ def build_client(has_documents: bool) -> TestClient:
             message_service=SimpleNamespace(),
             title_service=SimpleNamespace(maybe_generate_title=lambda **kwargs: None),
             get_owned_session=lambda: SimpleNamespace(session_id="s"),
+            query_rate_limit=lambda: None,
         ),
         prefix="/sessions",
     )

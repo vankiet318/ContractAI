@@ -1,12 +1,15 @@
+from datetime import timedelta
 from pathlib import Path
 
 from qdrant_client import QdrantClient
 
 from app.config import (
+    AuthConfig,
     ChunkingConfig,
     EmbeddingConfig,
     GeminiConfig,
     QdrantConfig,
+    RateLimitConfig,
     RerankingConfig,
     RetrievalConfig,
     StorageConfig,
@@ -14,7 +17,7 @@ from app.config import (
 
 from app.auth.dependencies import create_get_current_user
 from app.auth.repository import UserRepository
-from app.auth.service import AuthService
+from app.auth.service import AuthService, LoginLockoutPolicy
 
 from app.sessions.dependencies import create_get_owned_session
 from app.sessions.repository import SessionRepository
@@ -57,6 +60,12 @@ from app.generation.prompt_builder import PromptBuilder
 from app.generation.gemini_client import GeminiClient
 from app.generation.citation_builder import CitationBuilder
 
+from app.rate_limit.dependencies import (
+    create_ip_rate_limit,
+    create_user_rate_limit,
+)
+from app.rate_limit.limiter import SlidingWindowRateLimiter
+
 from app.api.query import create_query_router
 from app.api.auth import create_auth_router
 from app.api.sessions import create_sessions_router
@@ -69,6 +78,8 @@ chunking_config = ChunkingConfig.from_env()
 reranking_config = RerankingConfig.from_env()
 retrieval_config = RetrievalConfig.from_env()
 storage_config = StorageConfig.from_env()
+auth_config = AuthConfig.from_env()
+rate_limit_config = RateLimitConfig.from_env()
 
 upload_dir = Path(storage_config.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
@@ -114,6 +125,10 @@ user_repository = UserRepository()
 
 auth_service = AuthService(
     repository=user_repository,
+    lockout_policy=LoginLockoutPolicy(
+        max_failed_attempts=auth_config.max_failed_logins,
+        lock_duration=timedelta(minutes=auth_config.lockout_minutes),
+    ),
 )
 
 session_repository = SessionRepository()
@@ -218,8 +233,32 @@ query_use_case = QuerySessionUseCase(
     min_relevance_score=reranking_config.min_score,
 )
 
+login_rate_limit = create_ip_rate_limit(
+    SlidingWindowRateLimiter(
+        max_requests=rate_limit_config.login_per_minute,
+        window_seconds=60,
+    )
+)
+
+register_rate_limit = create_ip_rate_limit(
+    SlidingWindowRateLimiter(
+        max_requests=rate_limit_config.register_per_hour,
+        window_seconds=60 * 60,
+    )
+)
+
+query_rate_limit = create_user_rate_limit(
+    SlidingWindowRateLimiter(
+        max_requests=rate_limit_config.query_per_minute,
+        window_seconds=60,
+    ),
+    get_current_user=get_current_user,
+)
+
 auth_router = create_auth_router(
     auth_service=auth_service,
+    login_rate_limit=login_rate_limit,
+    register_rate_limit=register_rate_limit,
 )
 
 sessions_router = create_sessions_router(
@@ -234,6 +273,7 @@ documents_router = create_documents_router(
     deletion_service=document_deletion_service,
     get_owned_session=get_owned_session,
     upload_dir=upload_dir,
+    max_upload_mb=storage_config.max_upload_mb,
 )
 
 query_router = create_query_router(
@@ -241,4 +281,5 @@ query_router = create_query_router(
     message_service=message_service,
     title_service=session_title_service,
     get_owned_session=get_owned_session,
+    query_rate_limit=query_rate_limit,
 )

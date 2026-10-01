@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { listMessages, setMessageFeedback, streamQuery } from "../api/query";
 import { ApiError } from "../api/client";
+import { MAX_QUESTION_LENGTH } from "../constants";
 import { generateId } from "../lib/id";
 import type { ChatMessage, Citation, MessageFeedback } from "../types";
 import { CitationList } from "./CitationList";
@@ -304,6 +305,7 @@ export function ChatPanel({
         <input
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
+          maxLength={MAX_QUESTION_LENGTH}
           placeholder="Ask about this contract..."
           className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
         />

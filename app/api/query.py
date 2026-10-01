@@ -19,8 +19,11 @@ from app.sessions.models import ChatSession
 from app.sessions.title_service import SessionTitleService
 
 
+MAX_QUESTION_LENGTH = 2000
+
+
 class QueryRequest(BaseModel):
-    question: str = Field(min_length=1)
+    question: str = Field(min_length=1, max_length=MAX_QUESTION_LENGTH)
     top_k: int = Field(default=5, ge=1, le=20)
 
 
@@ -105,6 +108,7 @@ def create_query_router(
     message_service: ChatMessageService,
     title_service: SessionTitleService,
     get_owned_session: Callable[..., ChatSession],
+    query_rate_limit: Callable[..., None],
 ) -> APIRouter:
 
     router = APIRouter()
@@ -156,7 +160,10 @@ def create_query_router(
                 detail="Message not found",
             )
 
-    @router.post("/{session_id}/query")
+    @router.post(
+        "/{session_id}/query",
+        dependencies=[Depends(query_rate_limit)],
+    )
     def query_session(
         session_id: str,
         request: QueryRequest,

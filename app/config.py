@@ -65,6 +65,10 @@ class PostgresConfig:
         )
 
 
+# HS256 needs a key of at least 256 bits to resist brute force.
+MIN_JWT_SECRET_LENGTH = 32
+
+
 @dataclass
 class AuthConfig:
 
@@ -74,16 +78,60 @@ class AuthConfig:
 
     access_token_expire_minutes: int = 60
 
+    max_failed_logins: int = 5
+
+    lockout_minutes: int = 15
+
     @classmethod
     def from_env(cls) -> "AuthConfig":
         return cls(
-            secret_key=os.getenv(
-                "JWT_SECRET_KEY",
-                "insecure-dev-secret-change-me",
-            ),
+            secret_key=read_jwt_secret(),
             algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
             access_token_expire_minutes=int(
                 os.getenv("JWT_EXPIRE_MINUTES", "60")
+            ),
+            max_failed_logins=int(
+                os.getenv("AUTH_MAX_FAILED_LOGINS", "5")
+            ),
+            lockout_minutes=int(
+                os.getenv("AUTH_LOCKOUT_MINUTES", "15")
+            ),
+        )
+
+
+def read_jwt_secret() -> str:
+    # No fallback: a guessable default would let anyone forge tokens.
+    secret = os.getenv("JWT_SECRET_KEY", "")
+
+    if len(secret) < MIN_JWT_SECRET_LENGTH:
+        raise RuntimeError(
+            f"JWT_SECRET_KEY must be set to at least "
+            f"{MIN_JWT_SECRET_LENGTH} characters"
+        )
+
+    return secret
+
+
+@dataclass
+class RateLimitConfig:
+
+    login_per_minute: int = 10
+
+    register_per_hour: int = 5
+
+    query_per_minute: int = 20
+
+    @classmethod
+    def from_env(cls) -> "RateLimitConfig":
+        return cls(
+            login_per_minute=int(
+                os.getenv("RATE_LIMIT_LOGIN_PER_MINUTE", "10")
+            ),
+            register_per_hour=int(
+                os.getenv("RATE_LIMIT_REGISTER_PER_HOUR", "5")
+            ),
+            query_per_minute=int(
+                os.getenv("RATE_LIMIT_QUERY_PER_MINUTE", "20")
             ),
         )
 
@@ -168,12 +216,17 @@ class StorageConfig:
 
     upload_dir: str = "data/uploads"
 
+    max_upload_mb: int = 20
+
     @classmethod
     def from_env(cls) -> "StorageConfig":
         return cls(
             upload_dir=os.getenv(
                 "UPLOAD_DIR",
                 "data/uploads",
+            ),
+            max_upload_mb=int(
+                os.getenv("UPLOAD_MAX_MB", "20")
             ),
         )
 

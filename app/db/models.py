@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -18,6 +18,12 @@ class UserORM(Base):
     )
     hashed_password: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime]
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class SessionORM(Base):

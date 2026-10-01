@@ -16,6 +16,12 @@ class UserRepository:
                 )
             )
 
+    def update_login_state(self, user: User) -> None:
+        with get_db_session() as db:
+            row = db.get(UserORM, user.user_id)
+            row.failed_login_attempts = user.failed_login_attempts
+            row.locked_until = user.locked_until
+
     def get_by_id(self, user_id: str) -> User | None:
         with get_db_session() as db:
             row = db.get(UserORM, user_id)
@@ -37,4 +43,6 @@ class UserRepository:
             email=row.email,
             hashed_password=row.hashed_password,
             created_at=row.created_at,
+            failed_login_attempts=row.failed_login_attempts,
+            locked_until=row.locked_until,
         )
