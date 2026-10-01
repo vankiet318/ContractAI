@@ -82,9 +82,15 @@ class BGEM3Embedding(HybridEmbeddingModel):
         texts: list[str],
     ) -> tuple[list[list[float]], list[SparseEmbedding]]:
 
+        # preprocess() also returns non-tensor entries (e.g. "modality"),
+        # so only tensors are moved to the model's device.
         features = {
-            name: value.to(self.model.device)
-            for name, value in self.model.tokenize(texts).items()
+            name: (
+                value.to(self.model.device)
+                if isinstance(value, torch.Tensor)
+                else value
+            )
+            for name, value in self.model.preprocess(texts).items()
         }
 
         with torch.inference_mode():

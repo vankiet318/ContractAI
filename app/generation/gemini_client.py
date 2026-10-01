@@ -1,5 +1,8 @@
+from typing import Iterator
+
 from google import genai
 from google.genai import types
+from google.genai.chats import Chat
 
 from app.generation.base import LLM, ConversationTurn
 
@@ -31,7 +34,35 @@ class GeminiClient(LLM):
         history: list[ConversationTurn] | None = None,
     ) -> str:
 
-        chat = self.client.chats.create(
+        response = self._create_chat(history).send_message(prompt)
+
+        if not response.text:
+            raise RuntimeError("Gemini returned an empty response.")
+
+        return response.text
+
+    def generate_stream(
+        self,
+        prompt: str,
+        history: list[ConversationTurn] | None = None,
+    ) -> Iterator[str]:
+
+        has_text = False
+
+        for chunk in self._create_chat(history).send_message_stream(prompt):
+            if chunk.text:
+                has_text = True
+                yield chunk.text
+
+        if not has_text:
+            raise RuntimeError("Gemini returned an empty response.")
+
+    def _create_chat(
+        self,
+        history: list[ConversationTurn] | None,
+    ) -> Chat:
+
+        return self.client.chats.create(
             model=self.model_name,
             config=types.GenerateContentConfig(
                 system_instruction=self.system_instruction,
@@ -43,13 +74,6 @@ class GeminiClient(LLM):
             ),
             history=self._build_chat_history(history) if history else [],
         )
-
-        response = chat.send_message(prompt)
-
-        if not response.text:
-            raise RuntimeError("Gemini returned an empty response.")
-
-        return response.text
 
     def _build_chat_history(
         self,

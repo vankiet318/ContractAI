@@ -1,10 +1,20 @@
-from typing import Callable, Literal
+import dataclasses
+import json
+import logging
+from typing import Any, Callable, Iterator, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.messages.service import ChatMessageService, MessageNotFoundError
-from app.query.use_case import NoReadyDocumentsError, QuerySessionUseCase
+from app.query.use_case import (
+    AnswerDelta,
+    AnswerStarted,
+    NoReadyDocumentsError,
+    QueryEvent,
+    QuerySessionUseCase,
+)
 from app.sessions.models import ChatSession
 from app.sessions.title_service import SessionTitleService
 
@@ -27,14 +37,6 @@ class CitationResponse(BaseModel):
     text_snippet: str
 
 
-class QueryResponse(BaseModel):
-    message_id: str
-    question: str
-    answer: str
-    citations: list[CitationResponse]
-    session_title: str | None = None
-
-
 class ChatMessageResponse(BaseModel):
     message_id: str
     question: str
@@ -46,6 +48,56 @@ class ChatMessageResponse(BaseModel):
 
 class FeedbackRequest(BaseModel):
     feedback: Literal["like", "dislike"] | None = None
+
+
+logger = logging.getLogger(__name__)
+
+SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no",
+}
+
+
+def format_sse(event: str, data: dict[str, Any]) -> str:
+    payload = json.dumps(data, ensure_ascii=False)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+def format_query_event(event: QueryEvent) -> str:
+
+    if isinstance(event, AnswerStarted):
+        return format_sse("citations", {
+            "citations": [
+                dataclasses.asdict(citation)
+                for citation in event.citations
+            ],
+        })
+
+    if isinstance(event, AnswerDelta):
+        return format_sse("delta", {"text": event.text})
+
+    return format_sse("done", {"message_id": event.message_id})
+
+
+def stream_query_events(
+    events: Iterator[QueryEvent],
+    generate_title: Callable[[], str | None],
+) -> Iterator[str]:
+
+    # Headers are already sent once streaming starts, so failures are
+    # reported as an "error" event instead of an HTTP status.
+    try:
+        for event in events:
+            yield format_query_event(event)
+    except Exception:
+        logger.exception("Query stream failed")
+        yield format_sse("error", {"detail": "Query failed"})
+        return
+
+    title = generate_title()
+
+    if title:
+        yield format_sse("title", {"title": title})
 
 
 def create_query_router(
@@ -104,17 +156,14 @@ def create_query_router(
                 detail="Message not found",
             )
 
-    @router.post(
-        "/{session_id}/query",
-        response_model=QueryResponse,
-    )
+    @router.post("/{session_id}/query")
     def query_session(
         session_id: str,
         request: QueryRequest,
         session: ChatSession = Depends(get_owned_session),
-    ):
+    ) -> StreamingResponse:
         try:
-            result = query_use_case.execute(
+            events = query_use_case.stream(
                 session_id=session_id,
                 question=request.question,
                 top_k=request.top_k,
@@ -125,31 +174,16 @@ def create_query_router(
                 detail="No ready documents in this session.",
             )
 
-        generated_title = title_service.maybe_generate_title(
-            session=session,
-            question=request.question,
-        )
-
-        citation_response = [
-            CitationResponse(
-                source_id=citation.source_id,
-                chunk_id=citation.chunk_id,
-                document_id=citation.document_id,
-                page_start=citation.page_start,
-                page_end=citation.page_end,
-                section_number=citation.section_number,
-                section_title=citation.section_title,
-                text_snippet=citation.text_snippet,
-            )
-            for citation in result.citations
-        ]
-
-        return QueryResponse(
-            message_id=result.message_id,
-            question=request.question,
-            answer=result.answer,
-            citations=citation_response,
-            session_title=generated_title,
+        return StreamingResponse(
+            stream_query_events(
+                events=events,
+                generate_title=lambda: title_service.maybe_generate_title(
+                    session=session,
+                    question=request.question,
+                ),
+            ),
+            media_type="text/event-stream",
+            headers=SSE_HEADERS,
         )
 
     return router

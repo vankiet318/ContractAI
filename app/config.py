@@ -114,6 +114,10 @@ class RerankingConfig:
 
     device: str = "cpu"
 
+    # Chunks scoring below this (sigmoid, 0-1) are treated as unrelated to
+    # the question. Not yet calibrated on labeled data.
+    min_score: float = 0.05
+
     @classmethod
     def from_env(cls) -> "RerankingConfig":
         return cls(
@@ -122,6 +126,9 @@ class RerankingConfig:
                 "BAAI/bge-reranker-v2-m3",
             ),
             device=os.getenv("RERANKER_DEVICE", "cpu"),
+            min_score=float(
+                os.getenv("RERANK_MIN_SCORE", "0.05")
+            ),
         )
 
 
@@ -134,6 +141,10 @@ class RetrievalConfig:
 
     rrf_k: int = 60
 
+    # Cosine pre-filter applied before reranking; 0 disables it until it
+    # is calibrated with `python -m app.eval.retrieval calibrate`.
+    min_dense_score: float = 0.0
+
     @classmethod
     def from_env(cls) -> "RetrievalConfig":
         return cls(
@@ -145,6 +156,9 @@ class RetrievalConfig:
             ),
             rrf_k=int(
                 os.getenv("RETRIEVAL_RRF_K", "60")
+            ),
+            min_dense_score=float(
+                os.getenv("RETRIEVAL_MIN_DENSE_SCORE", "0")
             ),
         )
 

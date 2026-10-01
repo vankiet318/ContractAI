@@ -170,6 +170,7 @@ hybrid_retriever = HybridRetriever(
     dense_retriever=dense_retriever,
     sparse_retriever=sparse_retriever,
     rrf=rrf,
+    min_dense_score=retrieval_config.min_dense_score,
 )
 
 
@@ -214,6 +215,7 @@ query_use_case = QuerySessionUseCase(
     citation_builder=citation_builder,
     candidate_limit=retrieval_config.candidate_limit,
     limit=retrieval_config.limit,
+    min_relevance_score=reranking_config.min_score,
 )
 
 auth_router = create_auth_router(

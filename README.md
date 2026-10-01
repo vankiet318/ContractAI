@@ -11,10 +11,12 @@ RAG system for Vietnamese contract PDFs: upload a contract, ask questions, get a
 
 **Query**
 1. One BGE-M3 pass on the question yields both vectors.
-2. Dense and sparse search in Qdrant, scoped to the chat session.
+2. Dense and sparse search in Qdrant, scoped to the chat session. If the best dense match is below `RETRIEVAL_MIN_DENSE_SCORE` (default 0 = off), stop here: the question is off-topic.
 3. Fuse the two lists with Reciprocal Rank Fusion (`k = 60`).
-4. Rerank the shortlist with a cross-encoder.
-5. Gemini answers from the top chunks only; citations are returned alongside.
+4. Rerank the shortlist with a cross-encoder and drop chunks scoring below `RERANK_MIN_SCORE` (default 0.05). If none remain, the question is off-topic.
+5. Gemini answers from the top chunks only. The answer is streamed to the client over Server-Sent Events (`citations` → `delta`… → `done` → `title`).
+
+Off-topic questions get a fixed reply: no LLM call, no citations.
 
 ## Models
 
@@ -27,18 +29,21 @@ RAG system for Vietnamese contract PDFs: upload a contract, ask questions, get a
 Requires Docker Desktop and a Gemini API key.
 
 1. Create `.env` with `GEMINI_API_KEY` and `JWT_SECRET_KEY`.
-2. Start everything:
+2. Start Qdrant, Postgres and the backend (http://localhost:8000):
 
 ```
 docker compose up -d --build
 ```
 
-- Frontend: http://localhost:8080
-- Backend: http://localhost:8000
+3. Start the frontend (http://localhost:5173):
+
+```
+cd frontend
+npm install
+npm run dev
+```
 
 Migrations run automatically on backend start. The first query is slow while models download.
-
-Frontend with hot reload: `cd frontend && npm install && npm run dev` (http://localhost:5173).
 
 ## Retrieval evaluation
 
@@ -47,3 +52,11 @@ docker compose exec backend python -m app.eval.retrieval run --pdf data/uploads/
 ```
 
 Compares `dense`, `sparse`, `dense+sparse`, and `dense+sparse+rerank` (hit@k, recall@k, MRR, nDCG). See `app/eval/retrieval.py` for the question format.
+
+To pick the off-topic thresholds, score the same on-topic questions against a built-in off-topic list:
+
+```
+docker compose exec backend python -m app.eval.retrieval calibrate --pdf data/uploads/<id>.pdf --questions data/eval/questions.json
+```
+
+It prints `RETRIEVAL_MIN_DENSE_SCORE` / `RERANK_MIN_SCORE` values that block no on-topic question; put them in `.env`.

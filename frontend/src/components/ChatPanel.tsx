@@ -1,11 +1,13 @@
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { listMessages, querySession, setMessageFeedback } from "../api/query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { listMessages, setMessageFeedback, streamQuery } from "../api/query";
 import { ApiError } from "../api/client";
+import { generateId } from "../lib/id";
 import type { ChatMessage, Citation, MessageFeedback } from "../types";
 import { CitationList } from "./CitationList";
 import { TypingIndicator } from "./TypingIndicator";
-import { TypewriterMarkdown } from "./TypewriterMarkdown";
 
 const THINKING_LABELS = [
   "Đang truy vấn tài liệu...",
@@ -105,20 +107,16 @@ function AnswerBubble({
   onCitationSelect: (citation: Citation) => void;
   onFeedback: (feedback: MessageFeedback) => void;
 }) {
-  const [isRevealed, setIsRevealed] = useState(!message.animate);
-
   if (message.answer === null) return null;
 
   return (
     <div className="self-start bg-slate-50 rounded-lg px-3 py-2 max-w-[80%]">
       <div className="text-sm prose prose-sm prose-slate max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
-        <TypewriterMarkdown
-          text={message.answer}
-          animate={message.animate}
-          onComplete={() => setIsRevealed(true)}
-        />
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {message.answer}
+        </ReactMarkdown>
       </div>
-      {isRevealed && (
+      {message.status === "done" && (
         <>
           <CitationList
             citations={message.citations}
@@ -170,7 +168,6 @@ export function ChatPanel({
             citations: record.citations,
             errorMessage: null,
             feedback: record.feedback,
-            animate: false,
           })),
         );
       })
@@ -209,45 +206,42 @@ export function ChatPanel({
         citations: [],
         errorMessage: null,
         feedback: null,
-        animate: true,
       },
     ]);
     setQuestion("");
     setIsAsking(true);
 
+    const updateMessage = (update: (message: ChatMessage) => ChatMessage) =>
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.id === messageId ? update(message) : message,
+        ),
+      );
+
     try {
-      const response = await querySession(sessionId, trimmed);
-
-      setMessages((previous) =>
-        previous.map((message) =>
-          message.id === messageId
-            ? {
-                ...message,
-                messageId: response.message_id,
-                status: "done",
-                answer: response.answer,
-                citations: response.citations,
-              }
-            : message,
-        ),
-      );
-
-      if (response.session_title && onTitleGenerated) {
-        onTitleGenerated(response.session_title);
-      }
+      await streamQuery(sessionId, trimmed, {
+        onCitations: (citations) =>
+          updateMessage((message) => ({ ...message, citations })),
+        onDelta: (text) =>
+          updateMessage((message) => ({
+            ...message,
+            status: "streaming",
+            answer: (message.answer ?? "") + text,
+          })),
+        onDone: (savedMessageId) =>
+          updateMessage((message) => ({
+            ...message,
+            status: "done",
+            messageId: savedMessageId,
+          })),
+        onTitle: (title) => onTitleGenerated?.(title),
+      });
     } catch (err) {
-      setMessages((previous) =>
-        previous.map((message) =>
-          message.id === messageId
-            ? {
-                ...message,
-                status: "error",
-                errorMessage:
-                  err instanceof ApiError ? err.message : "Query failed",
-              }
-            : message,
-        ),
-      );
+      updateMessage((message) => ({
+        ...message,
+        status: "error",
+        errorMessage: err instanceof ApiError ? err.message : "Query failed",
+      }));
     } finally {
       setIsAsking(false);
     }
@@ -290,7 +284,7 @@ export function ChatPanel({
               </p>
             )}
 
-            {message.status === "done" && (
+            {(message.status === "streaming" || message.status === "done") && (
               <AnswerBubble
                 message={message}
                 onCitationSelect={onCitationSelect}

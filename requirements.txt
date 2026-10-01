@@ -4,7 +4,7 @@ python-multipart
 pymupdf
 pytest
 qdrant-client
-sentence-transformers
+sentence-transformers>=6.0,<7
 google-genai
 python-dotenv
 sqlalchemy

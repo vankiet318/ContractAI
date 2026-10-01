@@ -27,14 +27,6 @@ export interface Citation {
 
 export type MessageFeedback = "like" | "dislike";
 
-export interface QueryResponse {
-  message_id: string;
-  question: string;
-  answer: string;
-  citations: Citation[];
-  session_title: string | null;
-}
-
 export interface ChatMessageRecord {
   message_id: string;
   question: string;
@@ -44,7 +36,9 @@ export interface ChatMessageRecord {
   feedback: MessageFeedback | null;
 }
 
-export type ChatMessageStatus = "pending" | "done" | "error";
+/** pending: retrieving, no text yet. streaming: answer text arriving.
+ * done: answer saved, citations and feedback can be shown. */
+export type ChatMessageStatus = "pending" | "streaming" | "done" | "error";
 
 export interface ChatMessage {
   id: string;
@@ -57,7 +51,4 @@ export interface ChatMessage {
   citations: Citation[];
   errorMessage: string | null;
   feedback: MessageFeedback | null;
-  /** False for messages loaded from history, so they render instantly
-   * instead of replaying the typewriter reveal animation. */
-  animate: boolean;
 }

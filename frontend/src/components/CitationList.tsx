@@ -1,5 +1,16 @@
 import type { Citation } from "../types";
 
+function formatCitationLabel(citation: Citation): string {
+  const pages =
+    citation.page_start === citation.page_end
+      ? `${citation.page_start}`
+      : `${citation.page_start}-${citation.page_end}`;
+
+  if (!citation.section_number) return `Trang ${pages}`;
+
+  return `Điều ${citation.section_number} · trang ${pages}`;
+}
+
 export function CitationList({
   citations,
   onSelect,
@@ -19,14 +30,7 @@ export function CitationList({
           onClick={() => onSelect(citation)}
           className="text-xs bg-slate-100 text-slate-700 rounded px-2 py-0.5 hover:bg-slate-200"
         >
-          {citation.source_id}
-          {citation.section_number
-            ? ` · Điều ${citation.section_number}`
-            : ""}
-          {" · trang "}
-          {citation.page_start === citation.page_end
-            ? citation.page_start
-            : `${citation.page_start}-${citation.page_end}`}
+          {formatCitationLabel(citation)}
         </button>
       ))}
     </div>
