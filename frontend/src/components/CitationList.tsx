@@ -28,7 +28,7 @@ export function CitationList({
           type="button"
           title={citation.section_title ?? undefined}
           onClick={() => onSelect(citation)}
-          className="text-xs bg-slate-100 text-slate-700 rounded px-2 py-0.5 hover:bg-slate-200"
+          className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
         >
           {formatCitationLabel(citation)}
         </button>

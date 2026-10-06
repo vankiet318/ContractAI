@@ -1,6 +1,8 @@
+import { X } from "lucide-react";
 import type { DocumentSummary } from "../types";
 import { LoadErrorMessage } from "./LoadErrorMessage";
 import { StatusBadge } from "./StatusBadge";
+import { IconButton } from "./ui/Button";
 
 export function DocumentStatusList({
   documents,
@@ -40,7 +42,7 @@ export function DocumentStatusList({
       {documents.map((document) => (
         <li
           key={document.document_id}
-          className="group flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2"
+          className="group flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2"
         >
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">
@@ -54,14 +56,14 @@ export function DocumentStatusList({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <StatusBadge status={document.status} />
-            <button
-              type="button"
+            <IconButton
+              tone="danger"
               onClick={() => onDelete(document.document_id)}
               title="Xóa tài liệu"
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+              className="opacity-0 group-hover:opacity-100"
             >
-              ×
-            </button>
+              <X className="w-4 h-4" />
+            </IconButton>
           </div>
         </li>
       ))}

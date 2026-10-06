@@ -1,7 +1,9 @@
+import { X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { TOAST_DURATION_MS } from "../constants";
 import { ToastContext, type ToastVariant } from "../hooks/useToast";
 import { generateId } from "../lib/id";
+import { IconButton } from "./ui/Button";
 
 const STYLES: Record<ToastVariant, string> = {
   error: "border-red-200 bg-red-50 text-red-800",
@@ -46,17 +48,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={toast.id}
             role={toast.variant === "error" ? "alert" : "status"}
-            className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-md ${STYLES[toast.variant]}`}
+            className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm shadow-md ${STYLES[toast.variant]}`}
           >
-            <p className="flex-1">{toast.message}</p>
-            <button
-              type="button"
+            <p className="flex-1 py-0.5">{toast.message}</p>
+            <IconButton
               title="Đóng"
               onClick={() => dismiss(toast.id)}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full opacity-60 hover:opacity-100"
+              className="-my-1 -mr-1.5"
             >
-              ×
-            </button>
+              <X className="w-4 h-4" />
+            </IconButton>
           </div>
         ))}
       </div>

@@ -1,9 +1,11 @@
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { fetchDocumentFileBlob } from "../api/documents";
 import type { Citation } from "../types";
+import { Button, IconButton } from "./ui/Button";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -43,10 +45,6 @@ export function DocumentPreviewPanel({
 
   useEffect(() => {
     let objectUrl: string | null = null;
-    setFileUrl(null);
-    setError(null);
-    setNumPages(null);
-    setPageNumber(citation.page_start);
 
     fetchDocumentFileBlob(sessionId, citation.document_id)
       .then((blob) => {
@@ -58,54 +56,52 @@ export function DocumentPreviewPanel({
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [sessionId, citation.document_id, citation.page_start, citation.chunk_id]);
+  }, [sessionId, citation.document_id]);
 
   return (
     <aside className="w-[640px] shrink-0 border-l border-slate-200 flex flex-col h-full">
       <header className="flex items-center justify-between px-4 py-2 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            title="Trang trước"
             disabled={pageNumber <= 1}
             onClick={() => setPageNumber((page) => Math.max(1, page - 1))}
-            className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent"
           >
-            ‹
-          </button>
-          <span className="text-xs text-slate-600">
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-sm text-slate-600">
             Trang {pageNumber}
             {numPages ? ` / ${numPages}` : ""}
           </span>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            title="Trang sau"
             disabled={numPages !== null && pageNumber >= numPages}
             onClick={() =>
               setPageNumber((page) =>
                 numPages ? Math.min(numPages, page + 1) : page + 1,
               )
             }
-            className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent"
           >
-            ›
-          </button>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-        >
-          Đóng
-        </button>
+        <IconButton title="Đóng" onClick={onClose}>
+          <X className="w-4 h-4" />
+        </IconButton>
       </header>
 
       <div className="flex-1 overflow-auto p-2" ref={containerRef}>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         {fileUrl && (
           <Document
             file={fileUrl}
             loading={
-              <p className="text-xs text-slate-500">Đang tải PDF...</p>
+              <p className="text-sm text-slate-500">Đang tải PDF...</p>
             }
             onLoadSuccess={({ numPages: total }) => setNumPages(total)}
           >

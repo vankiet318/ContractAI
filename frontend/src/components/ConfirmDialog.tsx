@@ -1,3 +1,5 @@
+import { Button } from "./ui/Button";
+
 export function ConfirmDialog({
   open,
   title,
@@ -30,20 +32,12 @@ export function ConfirmDialog({
         <p className="mt-1.5 text-sm text-slate-600">{message}</p>
 
         <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
-          >
+          <Button variant="ghost" size="sm" onClick={onCancel}>
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-          >
+          </Button>
+          <Button variant="danger" size="sm" onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

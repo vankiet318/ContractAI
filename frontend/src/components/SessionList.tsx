@@ -1,5 +1,8 @@
+import { Plus, X } from "lucide-react";
 import type { ChatSessionSummary } from "../types";
+import { AppLogo } from "./AppLogo";
 import { LoadErrorMessage } from "./LoadErrorMessage";
+import { Button, IconButton, TextButton } from "./ui/Button";
 
 interface SessionListProps {
   sessions: ChatSessionSummary[];
@@ -26,14 +29,12 @@ export function SessionList({
 }: SessionListProps) {
   return (
     <aside className="w-64 shrink-0 border-r border-slate-200 flex flex-col h-full">
-      <div className="p-3 border-b border-slate-200">
-        <button
-          type="button"
-          onClick={onCreate}
-          className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-700"
-        >
-          + Đoạn chat mới
-        </button>
+      <div className="p-3 border-b border-slate-200 flex flex-col gap-3">
+        <AppLogo />
+        <Button onClick={onCreate} className="w-full">
+          <Plus className="w-4 h-4" />
+          Đoạn chat mới
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -68,27 +69,23 @@ export function SessionList({
               >
                 {session.title}
               </button>
-              <button
-                type="button"
+              <IconButton
+                tone="danger"
                 onClick={() => onDelete(session.session_id)}
                 title="Xóa đoạn chat"
-                className="mr-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+                className="mr-2 opacity-0 group-hover:opacity-100"
               >
-                ×
-              </button>
+                <X className="w-4 h-4" />
+              </IconButton>
             </li>
           ))}
         </ul>
       </div>
 
       <div className="p-3 border-t border-slate-200">
-        <button
-          type="button"
-          onClick={onLogout}
-          className="w-full text-xs text-slate-500 hover:text-slate-900"
-        >
+        <TextButton onClick={onLogout} className="w-full">
           Đăng xuất
-        </button>
+        </TextButton>
       </div>
     </aside>
   );

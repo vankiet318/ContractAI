@@ -7,9 +7,9 @@ const STYLES: Record<DocumentStatus, string> = {
 };
 
 const LABELS: Record<DocumentStatus, string> = {
-  processing: "Processing",
-  ready: "Ready",
-  failed: "Failed",
+  processing: "Đang xử lý",
+  ready: "Sẵn sàng",
+  failed: "Lỗi",
 };
 
 export function StatusBadge({ status }: { status: DocumentStatus }) {

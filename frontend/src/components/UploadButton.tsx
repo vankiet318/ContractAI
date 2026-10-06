@@ -1,7 +1,9 @@
+import { Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { uploadDocument } from "../api/documents";
 import { toErrorMessage } from "../api/client";
 import { useToast } from "../hooks/useToast";
+import { Button } from "./ui/Button";
 
 export function UploadButton({
   sessionId,
@@ -53,18 +55,19 @@ export function UploadButton({
         disabled={isUploading}
         onChange={handleFileChange}
       />
-      <button
-        type="button"
+      <Button
+        size="sm"
         disabled={isUploading}
         title="Có thể mất một lúc tùy độ dài tài liệu"
         onClick={() => inputRef.current?.click()}
-        className="flex items-center justify-center gap-2 rounded-md bg-slate-900 text-white text-xs font-medium px-3 py-1.5 hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-900"
       >
-        {isUploading && (
-          <span className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+        {isUploading ? (
+          <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+        ) : (
+          <Upload className="w-4 h-4" />
         )}
-        {isUploading ? "Đang xử lý..." : "+ Upload PDF"}
-      </button>
+        {isUploading ? "Đang xử lý..." : "Tải lên PDF"}
+      </Button>
     </div>
   );
 }

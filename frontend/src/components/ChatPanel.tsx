@@ -1,4 +1,4 @@
-import { ThumbsDown, ThumbsUp } from "lucide-react";
+import { SendHorizontal, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -10,6 +10,8 @@ import type { ChatMessage, Citation, MessageFeedback } from "../types";
 import { CitationList } from "./CitationList";
 import { LoadErrorMessage } from "./LoadErrorMessage";
 import { TypingIndicator } from "./TypingIndicator";
+import { Button, IconButton } from "./ui/Button";
+import { TextInput } from "./ui/TextInput";
 
 const THINKING_LABELS = [
   "Đang truy vấn tài liệu...",
@@ -21,16 +23,16 @@ function useThinkingLabel(isActive: boolean): string {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    if (!isActive) {
-      setIndex(0);
-      return;
-    }
+    if (!isActive) return;
 
     const timer = setInterval(() => {
       setIndex((previous) => (previous + 1) % THINKING_LABELS.length);
     }, 2200);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      setIndex(0);
+    };
   }, [isActive]);
 
   return THINKING_LABELS[index];
@@ -78,24 +80,20 @@ function FeedbackButtons({
 
   return (
     <div className="mt-2 flex items-center gap-1">
-      <button
-        type="button"
+      <IconButton
         title="Câu trả lời hữu ích"
         disabled={disabled}
         onClick={() => submit("like")}
-        className="rounded p-1 text-slate-400 hover:bg-slate-200 disabled:opacity-50"
       >
         <ThumbsUp className="w-4 h-4" />
-      </button>
-      <button
-        type="button"
+      </IconButton>
+      <IconButton
         title="Câu trả lời chưa tốt"
         disabled={disabled}
         onClick={() => submit("dislike")}
-        className="rounded p-1 text-slate-400 hover:bg-slate-200 disabled:opacity-50"
       >
         <ThumbsDown className="w-4 h-4" />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -156,9 +154,6 @@ export function ChatPanel({
   useEffect(() => {
     let isCancelled = false;
 
-    setIsLoadingHistory(true);
-    setHistoryError(null);
-
     listMessages(sessionId)
       .then((history) => {
         if (isCancelled) return;
@@ -195,6 +190,12 @@ export function ChatPanel({
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const retryLoadHistory = () => {
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+    setHistoryLoadAttempt((attempt) => attempt + 1);
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -274,7 +275,7 @@ export function ChatPanel({
         {!isLoadingHistory && historyError && (
           <LoadErrorMessage
             message={historyError}
-            onRetry={() => setHistoryLoadAttempt((attempt) => attempt + 1)}
+            onRetry={retryLoadHistory}
           />
         )}
 
@@ -293,12 +294,12 @@ export function ChatPanel({
             {message.status === "pending" && (
               <div className="self-start flex flex-col items-start gap-1">
                 <TypingIndicator />
-                <p className="text-xs text-slate-400">{thinkingLabel}</p>
+                <p className="text-xs text-slate-500">{thinkingLabel}</p>
               </div>
             )}
 
             {message.status === "error" && (
-              <p className="self-start text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 inline-block max-w-[80%]">
+              <p className="self-start text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 inline-block max-w-[80%]">
                 {message.errorMessage}
               </p>
             )}
@@ -318,22 +319,19 @@ export function ChatPanel({
 
       <form
         onSubmit={handleSubmit}
-        className="p-2 flex gap-2"
+        className="px-4 pb-4 pt-2 flex gap-2"
       >
-        <input
+        <TextInput
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           maxLength={MAX_QUESTION_LENGTH}
-          placeholder="Ask about this contract..."
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          placeholder="Đặt câu hỏi về tài liệu..."
+          className="flex-1"
         />
-        <button
-          type="submit"
-          disabled={isAsking}
-          className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-900"
-        >
-          {isAsking ? "..." : "Send"}
-        </button>
+        <Button type="submit" disabled={isAsking}>
+          <SendHorizontal className="w-4 h-4" />
+          Gửi
+        </Button>
       </form>
     </div>
   );

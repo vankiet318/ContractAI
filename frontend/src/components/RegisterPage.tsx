@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { register } from "../api/auth";
 import { toErrorMessage } from "../api/client";
+import { AppLogo } from "./AppLogo";
+import { Button, TextButton } from "./ui/Button";
+import { TextInput } from "./ui/TextInput";
 
 export function RegisterPage({
   onSwitchToLogin,
@@ -37,13 +40,7 @@ export function RegisterPage({
           <p className="text-sm">
             Tạo tài khoản thành công. Vui lòng đăng nhập.
           </p>
-          <button
-            type="button"
-            onClick={onSwitchToLogin}
-            className="rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-700"
-          >
-            Đến trang đăng nhập
-          </button>
+          <Button onClick={onSwitchToLogin}>Đến trang đăng nhập</Button>
         </div>
       </div>
     );
@@ -55,43 +52,34 @@ export function RegisterPage({
         onSubmit={handleSubmit}
         className="w-80 flex flex-col gap-3 p-6 rounded-lg border border-slate-200"
       >
+        <AppLogo />
         <h1 className="text-lg font-semibold">Đăng ký</h1>
 
-        <input
+        <TextInput
           type="email"
           required
           placeholder="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
-        <input
+        <TextInput
           type="password"
           required
           minLength={8}
           placeholder="Mật khẩu (tối thiểu 8 ký tự)"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-900"
-        >
-          {isSubmitting ? "..." : "Đăng ký"}
-        </button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Đang xử lý..." : "Đăng ký"}
+        </Button>
 
-        <button
-          type="button"
-          onClick={onSwitchToLogin}
-          className="text-xs text-slate-500 hover:text-slate-900"
-        >
+        <TextButton onClick={onSwitchToLogin}>
           Đã có tài khoản? Đăng nhập
-        </button>
+        </TextButton>
       </form>
     </div>
   );

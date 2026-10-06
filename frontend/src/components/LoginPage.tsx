@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { toErrorMessage } from "../api/client";
+import { AppLogo } from "./AppLogo";
+import { Button, TextButton } from "./ui/Button";
+import { TextInput } from "./ui/TextInput";
 
 export function LoginPage({
   onLogin,
@@ -35,42 +38,33 @@ export function LoginPage({
         onSubmit={handleSubmit}
         className="w-80 flex flex-col gap-3 p-6 rounded-lg border border-slate-200"
       >
+        <AppLogo />
         <h1 className="text-lg font-semibold">Đăng nhập</h1>
 
-        <input
+        <TextInput
           type="email"
           required
           placeholder="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
-        <input
+        <TextInput
           type="password"
           required
           placeholder="Mật khẩu"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-900"
-        >
-          {isSubmitting ? "..." : "Đăng nhập"}
-        </button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Đang xử lý..." : "Đăng nhập"}
+        </Button>
 
-        <button
-          type="button"
-          onClick={onSwitchToRegister}
-          className="text-xs text-slate-500 hover:text-slate-900"
-        >
+        <TextButton onClick={onSwitchToRegister}>
           Chưa có tài khoản? Đăng ký
-        </button>
+        </TextButton>
       </form>
     </div>
   );

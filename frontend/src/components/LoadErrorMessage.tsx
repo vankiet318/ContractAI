@@ -1,3 +1,5 @@
+import { TextButton } from "./ui/Button";
+
 export function LoadErrorMessage({
   message,
   onRetry,
@@ -8,13 +10,9 @@ export function LoadErrorMessage({
   return (
     <div className="p-3 text-sm text-red-600">
       <p>{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-1 text-xs font-medium text-slate-700 underline hover:text-slate-900"
-      >
+      <TextButton onClick={onRetry} className="mt-1">
         Thử lại
-      </button>
+      </TextButton>
     </div>
   );
 }

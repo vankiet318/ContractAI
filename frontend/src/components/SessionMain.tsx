@@ -116,7 +116,9 @@ export function SessionMain({
       </div>
 
       {previewCitation && (
+        // Remount per citation so the preview starts from a clean state.
         <DocumentPreviewPanel
+          key={`${previewCitation.document_id}:${previewCitation.chunk_id}:${previewCitation.page_start}`}
           sessionId={sessionId}
           citation={previewCitation}
           onClose={() => setPreviewCitation(null)}
