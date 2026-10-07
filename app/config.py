@@ -193,6 +193,10 @@ class RetrievalConfig:
     # is calibrated with `python -m app.eval.retrieval calibrate`.
     min_dense_score: float = 0.0
 
+    # Off-topic gate on the question alone (see AnchorTopicGate); -1
+    # disables it.
+    topic_min_margin: float = -0.02
+
     @classmethod
     def from_env(cls) -> "RetrievalConfig":
         return cls(
@@ -207,6 +211,9 @@ class RetrievalConfig:
             ),
             min_dense_score=float(
                 os.getenv("RETRIEVAL_MIN_DENSE_SCORE", "0")
+            ),
+            topic_min_margin=float(
+                os.getenv("RETRIEVAL_TOPIC_MIN_MARGIN", "-0.02")
             ),
         )
 

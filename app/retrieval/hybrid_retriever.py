@@ -3,6 +3,7 @@ from app.retrieval.dense_retriever import DenseRetriever
 from app.retrieval.models import RetrievalResult
 from app.retrieval.rrf import RRFFusion
 from app.retrieval.sparse_retriever import SparseRetriever
+from app.retrieval.topic_gate import TopicGate
 
 
 class HybridRetriever:
@@ -11,10 +12,12 @@ class HybridRetriever:
     (one BGE-M3 pass yields both vectors) and each vector is searched
     against its own named vector in Qdrant.
 
-    min_dense_score is a cheap pre-filter: when even the best dense match
-    is below it, the question is treated as unrelated to the documents and
-    nothing is returned, so the caller can skip reranking and generation.
-    Keep it conservative; the reranker threshold is the precise check.
+    Off-topic questions return nothing, so the caller skips reranking and
+    generation:
+    - topic_gate rejects them from the query vector alone, before any
+      search (e.g. "1+1 bằng bao nhiêu?");
+    - min_dense_score rejects them when even the best dense match is
+      below it. Keep it conservative; it depends on each contract's text.
     """
 
     def __init__(
@@ -24,12 +27,14 @@ class HybridRetriever:
         sparse_retriever: SparseRetriever,
         rrf: RRFFusion,
         min_dense_score: float = 0.0,
+        topic_gate: TopicGate | None = None,
     ):
         self.embedding_model = embedding_model
         self.dense_retriever = dense_retriever
         self.sparse_retriever = sparse_retriever
         self.rrf = rrf
         self.min_dense_score = min_dense_score
+        self.topic_gate = topic_gate
 
     def retrieve(
         self,
@@ -47,6 +52,9 @@ class HybridRetriever:
         dense_vectors, sparse_vectors = self.embedding_model.embed_hybrid(
             [query]
         )
+
+        if self.topic_gate and not self.topic_gate.is_on_topic(dense_vectors[0]):
+            return []
 
         dense_results = self.dense_retriever.search(
             vector=dense_vectors[0],

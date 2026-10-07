@@ -51,6 +51,11 @@ from app.retrieval.dense_retriever import DenseRetriever
 from app.retrieval.sparse_retriever import SparseRetriever
 from app.retrieval.rrf import RRFFusion
 from app.retrieval.hybrid_retriever import HybridRetriever
+from app.retrieval.topic_anchors import (
+    CONTRACT_QUESTION_EXAMPLES,
+    OFF_TOPIC_EXAMPLES,
+)
+from app.retrieval.topic_gate import AnchorTopicGate
 
 from app.reranking.cross_encoder import CrossEncoderReranker
 from app.reranking.service import RerankingService
@@ -180,12 +185,20 @@ sparse_retriever = SparseRetriever(
 
 rrf = RRFFusion(k=retrieval_config.rrf_k)
 
+topic_gate = AnchorTopicGate(
+    embedding_model=embedding_model,
+    contract_examples=CONTRACT_QUESTION_EXAMPLES,
+    off_topic_examples=OFF_TOPIC_EXAMPLES,
+    min_margin=retrieval_config.topic_min_margin,
+)
+
 hybrid_retriever = HybridRetriever(
     embedding_model=embedding_model,
     dense_retriever=dense_retriever,
     sparse_retriever=sparse_retriever,
     rrf=rrf,
     min_dense_score=retrieval_config.min_dense_score,
+    topic_gate=topic_gate,
 )
 
 

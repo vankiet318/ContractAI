@@ -6,7 +6,7 @@ RAG system for Vietnamese contract PDFs: upload a contract, ask questions, get a
 
 - **Ingestion:** parse PDF → detect sections ("Điều 3", "1.2", "a)") → chunk (~1500 chars) → embed with BGE-M3 → store in Qdrant.
 - **Query:** hybrid dense + sparse search → RRF fusion → cross-encoder rerank → Gemini answers from top chunks, streamed over SSE.
-- Off-topic questions (below `RETRIEVAL_MIN_DENSE_SCORE` / `RERANK_MIN_SCORE`) get a fixed reply with no LLM call.
+- Off-topic questions get a fixed reply with no LLM call. Most are caught right after embedding the question (`RETRIEVAL_TOPIC_MIN_MARGIN`, no search or reranking); the rest by `RETRIEVAL_MIN_DENSE_SCORE` / `RERANK_MIN_SCORE`.
 
 ## Run locally
 

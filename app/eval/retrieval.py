@@ -439,9 +439,12 @@ def command_calibrate(args: argparse.Namespace) -> None:
     corpus = Corpus(args.pdf)
     score = build_relevance_scorer(corpus)
 
+    # Only labeled questions are known to be answerable from the contract;
+    # refusal cases in the same file must not lower the threshold.
     on_topic = [
         score(question["question"])
         for question in load_questions(args.questions)
+        if Labels(question).target_count > 0
     ]
 
     off_topic = [
