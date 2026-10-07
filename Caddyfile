@@ -1,0 +1,14 @@
+{$DOMAIN} {
+	# Strip the /api prefix: the backend serves its routes at the root (/auth, /sessions, ...).
+	# No `encode` here, compression would buffer the SSE answer stream.
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}

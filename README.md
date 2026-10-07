@@ -14,14 +14,29 @@ Requires Docker Desktop and a Gemini API key.
 
 ```
 cp .env.example .env                    # set GEMINI_API_KEY and JWT_SECRET_KEY
-docker compose up -d --build            # Qdrant, Postgres, backend → http://localhost:8000
+docker compose up -d --build            # app → http://localhost:8080, API → http://localhost:8000
+```
 
+For frontend hot reload, run the Vite dev server instead (it calls the backend on port 8000):
+
+```
 cd frontend
 cp .env.example .env
 npm install && npm run dev              # → http://localhost:5173
 ```
 
 Migrations run on backend start. The first query is slow while models download.
+
+## Deploy (production)
+
+Requires a server with Docker, ports 80/443 open, and a domain pointing at it. Plan for ~6 GB RAM for the embedding and reranker models.
+
+```
+cp .env.example .env                    # also set DOMAIN and POSTGRES_PASSWORD
+docker compose -f docker-compose.prod.yml up -d --build   # → https://<DOMAIN>
+```
+
+Caddy serves the built frontend, proxies `/api/*` to the backend, and obtains the HTTPS certificate. Qdrant, Postgres and the backend are not exposed outside the Docker network.
 
 ## Tests
 
