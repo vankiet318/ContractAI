@@ -4,7 +4,7 @@ import { clearToken, getToken } from "./authStorage";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 const NETWORK_ERROR_MESSAGE =
-  "Không kết nối được máy chủ. Vui lòng kiểm tra kết nối và thử lại.";
+  "Could not reach the server. Please check your connection and try again.";
 
 export class ApiError extends Error {
   status: number;
@@ -44,7 +44,7 @@ async function throwApiError(response: Response): Promise<never> {
 }
 
 function statusErrorMessage(status: number): string {
-  return `Có lỗi xảy ra (mã ${status}). Vui lòng thử lại.`;
+  return `Something went wrong (code ${status}). Please try again.`;
 }
 
 /** Message for any caught error: the server's message when there is one,

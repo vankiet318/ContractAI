@@ -82,7 +82,11 @@ class QuerySessionUseCase:
         session_id: str,
         question: str,
         top_k: int,
+        llm: LLM | None = None,
     ) -> Iterator[QueryEvent]:
+        """
+        llm overrides the default model for this query (the user's pick).
+        """
 
         # Checked before the generator starts so the caller can still
         # reject the request with a normal error response.
@@ -92,6 +96,7 @@ class QuerySessionUseCase:
             session_id=session_id,
             question=question,
             top_k=top_k,
+            llm=llm or self.llm,
         )
 
     def _stream_answer(
@@ -99,6 +104,7 @@ class QuerySessionUseCase:
         session_id: str,
         question: str,
         top_k: int,
+        llm: LLM,
     ) -> Iterator[QueryEvent]:
 
         results = self._find_relevant_results(
@@ -113,7 +119,7 @@ class QuerySessionUseCase:
 
         answer_parts = []
 
-        for text in self._generate_answer(session_id, question, results):
+        for text in self._generate_answer(session_id, question, results, llm):
             answer_parts.append(text)
             yield AnswerDelta(text=text)
 
@@ -134,6 +140,7 @@ class QuerySessionUseCase:
         session_id: str,
         question: str,
         results: list[RetrievalResult],
+        llm: LLM,
     ) -> Iterator[str]:
 
         # Off-topic questions end here: no LLM call and no citations
@@ -149,7 +156,7 @@ class QuerySessionUseCase:
             context=self.context_builder.format(context_items),
         )
 
-        yield from self.llm.generate_stream(
+        yield from llm.generate_stream(
             prompt,
             history=self._load_history(session_id),
         )

@@ -40,8 +40,8 @@ def enforce(limiter: SlidingWindowRateLimiter, key: str) -> None:
         raise HTTPException(
             status_code=429,
             detail=(
-                "Bạn thao tác quá nhiều lần. Vui lòng thử lại sau "
-                f"{error.retry_after_seconds} giây."
+                "Too many requests. Please try again in "
+                f"{error.retry_after_seconds} seconds."
             ),
             headers={"Retry-After": str(error.retry_after_seconds)},
         )

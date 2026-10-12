@@ -6,6 +6,7 @@ pytest
 qdrant-client
 sentence-transformers>=6.0,<7
 google-genai
+groq
 python-dotenv
 sqlalchemy
 psycopg2-binary

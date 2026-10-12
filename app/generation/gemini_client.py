@@ -1,10 +1,22 @@
 from typing import Iterator
 
+import httpx
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 from google.genai.chats import Chat
 
 from app.generation.base import LLM, ConversationTurn
+from app.generation.errors import LLMError, LLMErrorCode
+
+PROVIDER_NAME = "Gemini"
+
+BLOCKED_FINISH_REASONS = {
+    types.FinishReason.SAFETY,
+    types.FinishReason.RECITATION,
+    types.FinishReason.BLOCKLIST,
+    types.FinishReason.PROHIBITED_CONTENT,
+    types.FinishReason.SPII,
+}
 
 
 class GeminiClient(LLM):
@@ -34,10 +46,16 @@ class GeminiClient(LLM):
         history: list[ConversationTurn] | None = None,
     ) -> str:
 
-        response = self._create_chat(history).send_message(prompt)
+        try:
+            response = self._create_chat(history).send_message(prompt)
+        except Exception as error:
+            raise translate_error(error) from error
+
+        if is_blocked(response):
+            raise LLMError(PROVIDER_NAME, LLMErrorCode.BLOCKED)
 
         if not response.text:
-            raise RuntimeError("Gemini returned an empty response.")
+            raise LLMError(PROVIDER_NAME, LLMErrorCode.EMPTY_RESPONSE)
 
         return response.text
 
@@ -48,14 +66,25 @@ class GeminiClient(LLM):
     ) -> Iterator[str]:
 
         has_text = False
+        last_chunk = None
 
-        for chunk in self._create_chat(history).send_message_stream(prompt):
-            if chunk.text:
-                has_text = True
-                yield chunk.text
+        try:
+            for chunk in self._create_chat(history).send_message_stream(prompt):
+                last_chunk = chunk
+
+                if chunk.text:
+                    has_text = True
+                    yield chunk.text
+        except Exception as error:
+            raise translate_error(error) from error
+
+        # A safety stop can come after some text was already streamed;
+        # report it rather than saving a silently truncated answer.
+        if last_chunk is not None and is_blocked(last_chunk):
+            raise LLMError(PROVIDER_NAME, LLMErrorCode.BLOCKED)
 
         if not has_text:
-            raise RuntimeError("Gemini returned an empty response.")
+            raise LLMError(PROVIDER_NAME, LLMErrorCode.EMPTY_RESPONSE)
 
     def _create_chat(
         self,
@@ -97,3 +126,64 @@ class GeminiClient(LLM):
             )
 
         return contents
+
+
+def is_blocked(response: types.GenerateContentResponse) -> bool:
+    feedback = response.prompt_feedback
+
+    if feedback is not None and feedback.block_reason:
+        return True
+
+    return any(
+        candidate.finish_reason in BLOCKED_FINISH_REASONS
+        for candidate in response.candidates or []
+    )
+
+
+def translate_error(error: Exception) -> LLMError:
+    return LLMError(PROVIDER_NAME, classify_error(error))
+
+
+def classify_error(error: Exception) -> LLMErrorCode:
+
+    if isinstance(error, httpx.TimeoutException):
+        return LLMErrorCode.TIMEOUT
+
+    if isinstance(error, httpx.TransportError):
+        return LLMErrorCode.CONNECTION_FAILED
+
+    if not isinstance(error, errors.APIError):
+        return LLMErrorCode.UNKNOWN
+
+    status = error.status or ""
+    message = (error.message or "").lower()
+
+    # Free-tier quota and per-minute limits both arrive as 429.
+    if error.code == 429 or status == "RESOURCE_EXHAUSTED":
+        return LLMErrorCode.RATE_LIMITED
+
+    # An invalid key comes back as 400 INVALID_ARGUMENT, so check the
+    # message before treating 400 as a malformed request.
+    if (
+        error.code in (401, 403)
+        or status in ("UNAUTHENTICATED", "PERMISSION_DENIED")
+        or "api key" in message
+    ):
+        return LLMErrorCode.AUTH_FAILED
+
+    if error.code == 404:
+        return LLMErrorCode.MODEL_NOT_FOUND
+
+    if error.code == 504 or status == "DEADLINE_EXCEEDED":
+        return LLMErrorCode.TIMEOUT
+
+    if error.code >= 500:
+        return LLMErrorCode.UNAVAILABLE
+
+    if "token" in message and ("exceed" in message or "limit" in message):
+        return LLMErrorCode.CONTEXT_TOO_LONG
+
+    if error.code >= 400:
+        return LLMErrorCode.INVALID_REQUEST
+
+    return LLMErrorCode.UNKNOWN

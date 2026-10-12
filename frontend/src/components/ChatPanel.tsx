@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { listMessages, setMessageFeedback, streamQuery } from "../api/query";
 import { toErrorMessage } from "../api/client";
 import { MAX_QUESTION_LENGTH } from "../constants";
+import { useLlmProvider } from "../hooks/useLlmProvider";
 import { generateId } from "../lib/id";
 import type { ChatMessage, Citation, MessageFeedback } from "../types";
 import { CitationList } from "./CitationList";
@@ -149,6 +150,7 @@ export function ChatPanel({
   const [question, setQuestion] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const thinkingLabel = useThinkingLabel(isAsking);
+  const llmProvider = useLlmProvider();
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -229,7 +231,7 @@ export function ChatPanel({
       );
 
     try {
-      await streamQuery(sessionId, trimmed, {
+      await streamQuery(sessionId, trimmed, llmProvider.selectedId, {
         onCitations: (citations) =>
           updateMessage((message) => ({ ...message, citations })),
         onDelta: (text) =>
@@ -252,7 +254,7 @@ export function ChatPanel({
         status: "error",
         errorMessage: toErrorMessage(
           err,
-          "Không gửi được câu hỏi. Vui lòng thử lại.",
+          "Could not send your question. Please try again.",
         ),
       }));
     } finally {
@@ -321,6 +323,22 @@ export function ChatPanel({
         onSubmit={handleSubmit}
         className="px-4 pb-4 pt-2 flex gap-2"
       >
+        {llmProvider.providers.length > 1 && llmProvider.selectedId && (
+          <select
+            value={llmProvider.selectedId}
+            onChange={(event) => llmProvider.select(event.target.value)}
+            disabled={isAsking}
+            title="Model"
+            aria-label="Model"
+            className="max-w-44 rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900/10 disabled:opacity-50"
+          >
+            {llmProvider.providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.label} ({provider.model})
+              </option>
+            ))}
+          </select>
+        )}
         <TextInput
           value={question}
           onChange={(event) => setQuestion(event.target.value)}

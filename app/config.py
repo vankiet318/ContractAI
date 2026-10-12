@@ -264,3 +264,51 @@ class GeminiConfig:
                 os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "4096")
             ),
         )
+
+@dataclass
+class GroqConfig:
+
+    api_key: str | None
+
+    model_name: str = "openai/gpt-oss-120b"
+
+    temperature: float = 0.2
+
+    # Includes the model's reasoning tokens, not just the answer.
+    max_output_tokens: int = 8192
+
+    # low, medium or high; empty for models without reasoning.
+    reasoning_effort: str | None = "medium"
+
+    @classmethod
+    def from_env(cls) -> "GroqConfig":
+        return cls(
+            api_key=os.getenv("GROQ_API_KEY"),
+            model_name=os.getenv(
+                "GROQ_MODEL_NAME",
+                "openai/gpt-oss-120b",
+            ),
+            temperature=float(
+                os.getenv("GROQ_TEMPERATURE", "0.2")
+            ),
+            max_output_tokens=int(
+                os.getenv("GROQ_MAX_OUTPUT_TOKENS", "8192")
+            ),
+            reasoning_effort=os.getenv(
+                "GROQ_REASONING_EFFORT",
+                "medium",
+            ) or None,
+        )
+
+
+@dataclass
+class LLMConfig:
+
+    # Provider used when a query does not pick one: gemini or groq.
+    default_provider: str = "gemini"
+
+    @classmethod
+    def from_env(cls) -> "LLMConfig":
+        return cls(
+            default_provider=os.getenv("LLM_DEFAULT_PROVIDER", "gemini"),
+        )

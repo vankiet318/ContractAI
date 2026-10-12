@@ -14,10 +14,10 @@ class SessionTitleGenerator:
     def __init__(self, llm: LLM):
         self.llm = llm
 
-    def generate(self, question: str) -> str:
+    def generate(self, question: str, llm: LLM | None = None) -> str:
         prompt = _PROMPT_TEMPLATE.format(question=question)
 
-        raw_title = self.llm.generate(prompt).strip()
+        raw_title = (llm or self.llm).generate(prompt).strip()
 
         if not raw_title:
             return ""
