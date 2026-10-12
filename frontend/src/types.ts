@@ -52,3 +52,15 @@ export interface ChatMessage {
   errorMessage: string | null;
   feedback: MessageFeedback | null;
 }
+
+export interface LlmProvider {
+  id: string;
+  label: string;
+  model: string;
+}
+
+export interface LlmProviders {
+  /** Provider the server uses when a query does not name one. */
+  default: string;
+  providers: LlmProvider[];
+}

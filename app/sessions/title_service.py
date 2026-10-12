@@ -1,3 +1,4 @@
+from app.generation.base import LLM
 from app.sessions.models import ChatSession
 from app.sessions.service import SessionService
 from app.sessions.title_generator import SessionTitleGenerator
@@ -17,13 +18,14 @@ class SessionTitleService:
         self,
         session: ChatSession,
         question: str,
+        llm: LLM | None = None,
     ) -> str | None:
 
         if not session.title_is_default:
             return None
 
         try:
-            title = self.title_generator.generate(question)
+            title = self.title_generator.generate(question, llm=llm)
         except Exception:
             # Best-effort: keep the placeholder title, retry on the
             # session's next query rather than failing the request.

@@ -1,6 +1,7 @@
 import json
 
-from app.api.query import stream_query_events
+from app.api.query import UNEXPECTED_ERROR_MESSAGE, stream_query_events
+from app.generation.errors import LLMError, LLMErrorCode
 from app.query.use_case import AnswerCompleted, AnswerDelta, AnswerStarted
 
 
@@ -52,3 +53,31 @@ def test_failure_mid_stream_becomes_error_event_without_title():
 
     assert [name for name, _ in parse(list(stream))] == ["citations", "error"]
     assert titles_requested == []
+
+
+def test_llm_error_is_reported_with_its_own_message():
+
+    def failing_events():
+        yield AnswerStarted(citations=[])
+        raise LLMError("Gemini", LLMErrorCode.RATE_LIMITED)
+
+    stream = stream_query_events(failing_events(), generate_title=lambda: None)
+
+    name, data = parse(list(stream))[-1]
+
+    assert name == "error"
+    assert data["code"] == "rate_limited"
+    assert data["detail"].startswith("Gemini has run out of requests")
+
+
+def test_unexpected_error_gets_a_generic_message():
+
+    def failing_events():
+        raise RuntimeError("Qdrant down")
+        yield
+
+    stream = stream_query_events(failing_events(), generate_title=lambda: None)
+
+    assert parse(list(stream)) == [
+        ("error", {"code": "internal_error", "detail": UNEXPECTED_ERROR_MESSAGE}),
+    ]

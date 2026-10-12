@@ -23,6 +23,7 @@ export interface QueryStreamHandlers {
 export async function streamQuery(
   sessionId: string,
   question: string,
+  provider: string | null,
   handlers: QueryStreamHandlers,
 ): Promise<void> {
   let isCompleted = false;
@@ -32,7 +33,7 @@ export async function streamQuery(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, provider }),
     },
     (event) => {
       if (event.event === "done") isCompleted = true;
@@ -41,7 +42,10 @@ export async function streamQuery(
   );
 
   if (!isCompleted) {
-    throw new ApiError("Kết nối bị gián đoạn trước khi trả lời xong.", 0);
+    throw new ApiError(
+      "The connection was interrupted before the answer finished. Please try again.",
+      0,
+    );
   }
 }
 

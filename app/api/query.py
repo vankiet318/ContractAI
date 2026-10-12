@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.generation.errors import LLMError
+from app.generation.registry import LLMRegistry, UnknownProviderError
 from app.messages.service import ChatMessageService, MessageNotFoundError
 from app.query.use_case import (
     AnswerDelta,
@@ -25,6 +27,8 @@ MAX_QUESTION_LENGTH = 2000
 class QueryRequest(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_LENGTH)
     top_k: int = Field(default=5, ge=1, le=20)
+    # Id from GET /llm/providers; the server default when omitted.
+    provider: str | None = None
 
 
 class CitationResponse(BaseModel):
@@ -54,6 +58,10 @@ class FeedbackRequest(BaseModel):
 
 
 logger = logging.getLogger(__name__)
+
+UNEXPECTED_ERROR_MESSAGE = (
+    "Something went wrong while answering your question. Please try again."
+)
 
 SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -92,9 +100,24 @@ def stream_query_events(
     try:
         for event in events:
             yield format_query_event(event)
+    except LLMError as error:
+        logger.warning(
+            "LLM call failed: %s %s",
+            error.provider,
+            error.code,
+            exc_info=error.__cause__ or error,
+        )
+        yield format_sse("error", {
+            "code": error.code,
+            "detail": error.user_message,
+        })
+        return
     except Exception:
         logger.exception("Query stream failed")
-        yield format_sse("error", {"detail": "Query failed"})
+        yield format_sse("error", {
+            "code": "internal_error",
+            "detail": UNEXPECTED_ERROR_MESSAGE,
+        })
         return
 
     title = generate_title()
@@ -105,6 +128,7 @@ def stream_query_events(
 
 def create_query_router(
     query_use_case: QuerySessionUseCase,
+    llm_registry: LLMRegistry,
     message_service: ChatMessageService,
     title_service: SessionTitleService,
     get_owned_session: Callable[..., ChatSession],
@@ -170,10 +194,22 @@ def create_query_router(
         session: ChatSession = Depends(get_owned_session),
     ) -> StreamingResponse:
         try:
+            llm = llm_registry.get(request.provider).llm
+        except UnknownProviderError:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Model provider '{request.provider}' is not available. "
+                    "Please choose another model."
+                ),
+            )
+
+        try:
             events = query_use_case.stream(
                 session_id=session_id,
                 question=request.question,
                 top_k=request.top_k,
+                llm=llm,
             )
         except NoReadyDocumentsError:
             raise HTTPException(
@@ -187,6 +223,7 @@ def create_query_router(
                 generate_title=lambda: title_service.maybe_generate_title(
                     session=session,
                     question=request.question,
+                    llm=llm,
                 ),
             ),
             media_type="text/event-stream",

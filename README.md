@@ -4,20 +4,21 @@ RAG system for Vietnamese contract PDFs: upload a contract, ask questions, get a
 
 ## How it works
 
-- **Ingestion:** parse PDF → detect sections ("Điều 3", "1.2", "a)") → chunk (~1500 chars) → embed with BGE-M3 → store in Qdrant.
-- **Query:** hybrid dense + sparse search → RRF fusion → cross-encoder rerank → Gemini answers from top chunks, streamed over SSE.
-- Off-topic questions get a fixed reply with no LLM call. Most are caught right after embedding the question (`RETRIEVAL_TOPIC_MIN_MARGIN`, no search or reranking); the rest by `RETRIEVAL_MIN_DENSE_SCORE` / `RERANK_MIN_SCORE`.
+- **Ingestion:** parse the PDF, detect its section structure, chunk it, embed the chunks and store them in a vector database.
+- **Query:** hybrid search, rerank, then an LLM answers from the most relevant chunks, streamed to the browser. Off-topic questions are filtered out before the LLM is called.
+
+Models, providers, thresholds and other settings are configured through environment variables; `.env.example` lists them all with their defaults and explanations.
 
 ## Run locally
 
-Requires Docker Desktop and a Gemini API key.
+Requires Docker Desktop and an API key for at least one supported LLM provider (see `.env.example`).
 
 ```
-cp .env.example .env                    # set GEMINI_API_KEY and JWT_SECRET_KEY
-docker compose up -d --build            # app → http://localhost:8080, API → http://localhost:8000
+cp .env.example .env                    # fill in the values marked REQUIRED
+docker compose up -d --build            # backend services; API → http://localhost:8000
 ```
 
-For frontend hot reload, run the Vite dev server instead (it calls the backend on port 8000):
+The frontend runs separately with the Vite dev server (it calls the backend on port 8000):
 
 ```
 cd frontend
@@ -29,14 +30,14 @@ Migrations run on backend start. The first query is slow while models download.
 
 ## Deploy (production)
 
-Requires a server with Docker, ports 80/443 open, and a domain pointing at it. Plan for ~6 GB RAM for the embedding and reranker models.
+Requires a server with Docker, ports 80/443 open, and a domain pointing at it. The embedding and reranker models run on the server, so plan for several GB of RAM.
 
 ```
-cp .env.example .env                    # also set DOMAIN and POSTGRES_PASSWORD
+cp .env.example .env                    # also fill in the production section
 docker compose -f docker-compose.prod.yml up -d --build   # → https://<DOMAIN>
 ```
 
-Caddy serves the built frontend, proxies `/api/*` to the backend, and obtains the HTTPS certificate. Qdrant, Postgres and the backend are not exposed outside the Docker network.
+Caddy serves the built frontend, proxies `/api/*` to the backend, and obtains the HTTPS certificate. Only Caddy is exposed outside the Docker network.
 
 ## Tests
 
@@ -44,11 +45,10 @@ Caddy serves the built frontend, proxies `/api/*` to the backend, and obtains th
 pytest
 ```
 
-## Retrieval evaluation
+## Evaluation
+
+Evaluation scripts live in `app/eval/`. Each one documents its usage and input format:
 
 ```
-docker compose exec backend python -m app.eval.retrieval run --pdf data/uploads/<id>.pdf --questions data/eval/questions.json
-docker compose exec backend python -m app.eval.retrieval calibrate --pdf data/uploads/<id>.pdf --questions data/eval/questions.json
+docker compose exec backend python -m app.eval.<script> --help
 ```
-
-`run` compares retrieval modes (hit@k, recall@k, MRR, nDCG). `calibrate` suggests off-topic thresholds to put in `.env`. Question format: `app/eval/retrieval.py`.

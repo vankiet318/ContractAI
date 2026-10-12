@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.dependencies import (
     auth_router,
     documents_router,
+    llm_router,
     query_router,
     sessions_router,
 )
@@ -46,4 +47,10 @@ app.include_router(
     query_router,
     prefix="/sessions",
     tags=["Query"],
+)
+
+app.include_router(
+    llm_router,
+    prefix="/llm",
+    tags=["LLM"],
 )

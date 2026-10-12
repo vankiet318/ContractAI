@@ -8,6 +8,8 @@ from app.config import (
     ChunkingConfig,
     EmbeddingConfig,
     GeminiConfig,
+    GroqConfig,
+    LLMConfig,
     QdrantConfig,
     RateLimitConfig,
     RerankingConfig,
@@ -63,6 +65,8 @@ from app.reranking.service import RerankingService
 from app.generation.context_builder import ContextBuilder
 from app.generation.prompt_builder import PromptBuilder
 from app.generation.gemini_client import GeminiClient
+from app.generation.groq_client import GroqClient
+from app.generation.registry import LLMProvider, LLMRegistry
 from app.generation.citation_builder import CitationBuilder
 
 from app.rate_limit.dependencies import (
@@ -75,10 +79,13 @@ from app.api.query import create_query_router
 from app.api.auth import create_auth_router
 from app.api.sessions import create_sessions_router
 from app.api.documents import create_documents_router
+from app.api.llm import create_llm_router
 
 embedding_config = EmbeddingConfig.from_env()
 qdrant_config = QdrantConfig.from_env()
 gemini_config = GeminiConfig.from_env()
+groq_config = GroqConfig.from_env()
+llm_config = LLMConfig.from_env()
 chunking_config = ChunkingConfig.from_env()
 reranking_config = RerankingConfig.from_env()
 retrieval_config = RetrievalConfig.from_env()
@@ -215,17 +222,46 @@ context_builder = ContextBuilder()
 
 prompt_builder = PromptBuilder()
 
-gemini_client = GeminiClient(
-    model_name=gemini_config.model_name,
-    system_instruction=PromptBuilder.SYSTEM_INSTRUCTION,
-    api_key=gemini_config.api_key,
-    temperature=gemini_config.temperature,
-    max_output_tokens=gemini_config.max_output_tokens,
+# Only providers with an API key are offered to users.
+llm_providers = []
+
+if gemini_config.api_key:
+    llm_providers.append(LLMProvider(
+        provider_id="gemini",
+        label="Gemini",
+        model_name=gemini_config.model_name,
+        llm=GeminiClient(
+            model_name=gemini_config.model_name,
+            system_instruction=PromptBuilder.SYSTEM_INSTRUCTION,
+            api_key=gemini_config.api_key,
+            temperature=gemini_config.temperature,
+            max_output_tokens=gemini_config.max_output_tokens,
+        ),
+    ))
+
+if groq_config.api_key:
+    llm_providers.append(LLMProvider(
+        provider_id="groq",
+        label="Groq",
+        model_name=groq_config.model_name,
+        llm=GroqClient(
+            model_name=groq_config.model_name,
+            system_instruction=PromptBuilder.SYSTEM_INSTRUCTION,
+            api_key=groq_config.api_key,
+            temperature=groq_config.temperature,
+            max_output_tokens=groq_config.max_output_tokens,
+            reasoning_effort=groq_config.reasoning_effort,
+        ),
+    ))
+
+llm_registry = LLMRegistry(
+    providers=llm_providers,
+    default_id=llm_config.default_provider,
 )
 
 citation_builder = CitationBuilder()
 
-session_title_generator = SessionTitleGenerator(llm=gemini_client)
+session_title_generator = SessionTitleGenerator(llm=llm_registry.default.llm)
 
 session_title_service = SessionTitleService(
     session_service=session_service,
@@ -239,7 +275,7 @@ query_use_case = QuerySessionUseCase(
     reranking_service=reranking_service,
     context_builder=context_builder,
     prompt_builder=prompt_builder,
-    llm=gemini_client,
+    llm=llm_registry.default.llm,
     citation_builder=citation_builder,
     candidate_limit=retrieval_config.candidate_limit,
     limit=retrieval_config.limit,
@@ -291,8 +327,14 @@ documents_router = create_documents_router(
 
 query_router = create_query_router(
     query_use_case=query_use_case,
+    llm_registry=llm_registry,
     message_service=message_service,
     title_service=session_title_service,
     get_owned_session=get_owned_session,
     query_rate_limit=query_rate_limit,
+)
+
+llm_router = create_llm_router(
+    llm_registry=llm_registry,
+    get_current_user=get_current_user,
 )
