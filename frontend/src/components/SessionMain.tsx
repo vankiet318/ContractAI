@@ -15,10 +15,12 @@ export function SessionMain({
   sessionId,
   sessionTitle,
   onTitleGenerated,
+  onAnswerSavedWhileAway,
 }: {
   sessionId: string;
   sessionTitle: string;
   onTitleGenerated: (title: string) => void;
+  onAnswerSavedWhileAway: () => void;
 }) {
   const { showToast } = useToast();
   const { documents, isLoading, loadError, reload, refresh, remove } =
@@ -97,6 +99,7 @@ export function SessionMain({
               sessionId={sessionId}
               onCitationSelect={setPreviewCitation}
               onTitleGenerated={onTitleGenerated}
+              onAnswerSavedWhileAway={onAnswerSavedWhileAway}
             />
           </div>
           <div

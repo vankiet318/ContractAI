@@ -31,6 +31,7 @@ from app.sessions.title_service import SessionTitleService
 from app.messages.repository import ChatMessageRepository
 from app.messages.service import ChatMessageService
 
+from app.query.background import BackgroundStreamRunner
 from app.query.use_case import QuerySessionUseCase
 
 from app.ingestion.pdf_parser import PDFParser
@@ -269,6 +270,10 @@ session_title_service = SessionTitleService(
     title_generator=session_title_generator,
 )
 
+# Answers being generated at once. Most of their time is spent waiting on
+# the LLM; reranking has its own, smaller limit (RERANKER_WORKERS).
+answer_runner = BackgroundStreamRunner(max_workers=16)
+
 query_use_case = QuerySessionUseCase(
     document_service=document_service,
     message_service=message_service,
@@ -333,6 +338,7 @@ query_router = create_query_router(
     title_service=session_title_service,
     get_owned_session=get_owned_session,
     query_rate_limit=query_rate_limit,
+    answer_runner=answer_runner,
 )
 
 llm_router = create_llm_router(

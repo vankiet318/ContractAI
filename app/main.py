@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,12 +8,20 @@ from app.dependencies import (
     auth_router,
     documents_router,
     llm_router,
+    message_service,
     query_router,
     sessions_router,
 )
 
 
-app = FastAPI(title="ContractAI")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Answers still pending from before a restart can never finish.
+    message_service.fail_interrupted()
+    yield
+
+
+app = FastAPI(title="ContractAI", lifespan=lifespan)
 
 allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 

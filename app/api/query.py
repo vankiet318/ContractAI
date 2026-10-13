@@ -1,6 +1,7 @@
 import dataclasses
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Iterator, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,9 +10,13 @@ from pydantic import BaseModel, Field
 
 from app.generation.errors import LLMError
 from app.generation.registry import LLMRegistry, UnknownProviderError
+from app.messages.models import MessageStatus
 from app.messages.service import ChatMessageService, MessageNotFoundError
+from app.query.background import BackgroundStreamRunner
 from app.query.use_case import (
+    UNEXPECTED_ERROR_MESSAGE,
     AnswerDelta,
+    AnswerInProgressError,
     AnswerStarted,
     NoReadyDocumentsError,
     QueryEvent,
@@ -47,10 +52,13 @@ class CitationResponse(BaseModel):
 class ChatMessageResponse(BaseModel):
     message_id: str
     question: str
+    # For a pending message: the text generated so far.
     answer: str
     citations: list[CitationResponse]
     created_at: str
     feedback: Literal["like", "dislike"] | None = None
+    status: MessageStatus = "done"
+    error_message: str | None = None
 
 
 class FeedbackRequest(BaseModel):
@@ -59,8 +67,10 @@ class FeedbackRequest(BaseModel):
 
 logger = logging.getLogger(__name__)
 
-UNEXPECTED_ERROR_MESSAGE = (
-    "Something went wrong while answering your question. Please try again."
+# Session titles, generated next to the answer (one short LLM call each).
+_title_executor = ThreadPoolExecutor(
+    max_workers=4,
+    thread_name_prefix="title",
 )
 
 SSE_HEADERS = {
@@ -95,6 +105,11 @@ def stream_query_events(
     generate_title: Callable[[], str | None],
 ) -> Iterator[str]:
 
+    # The title needs only the question, so it is generated while the
+    # answer is retrieved. It is then saved before the answer finishes,
+    # which a client polling for the answer relies on to see both.
+    title = _title_executor.submit(generate_title)
+
     # Headers are already sent once streaming starts, so failures are
     # reported as an "error" event instead of an HTTP status.
     try:
@@ -120,10 +135,10 @@ def stream_query_events(
         })
         return
 
-    title = generate_title()
+    generated_title = title.result()
 
-    if title:
-        yield format_sse("title", {"title": title})
+    if generated_title:
+        yield format_sse("title", {"title": generated_title})
 
 
 def create_query_router(
@@ -133,6 +148,7 @@ def create_query_router(
     title_service: SessionTitleService,
     get_owned_session: Callable[..., ChatSession],
     query_rate_limit: Callable[..., None],
+    answer_runner: BackgroundStreamRunner,
 ) -> APIRouter:
 
     router = APIRouter()
@@ -158,6 +174,8 @@ def create_query_router(
                 ],
                 created_at=message.created_at.isoformat(),
                 feedback=message.feedback,
+                status=message.status,
+                error_message=message.error_message,
             )
             for message in messages
         ]
@@ -205,26 +223,42 @@ def create_query_router(
             )
 
         try:
-            events = query_use_case.stream(
+            message = query_use_case.start(
                 session_id=session_id,
                 question=request.question,
-                top_k=request.top_k,
-                llm=llm,
             )
         except NoReadyDocumentsError:
             raise HTTPException(
                 status_code=409,
                 detail="No ready documents in this session.",
             )
-
-        return StreamingResponse(
-            stream_query_events(
-                events=events,
-                generate_title=lambda: title_service.maybe_generate_title(
-                    session=session,
-                    question=request.question,
-                    llm=llm,
+        except AnswerInProgressError:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Câu hỏi trước trong đoạn chat này vẫn đang được trả lời. "
+                    "Vui lòng đợi rồi hỏi tiếp."
                 ),
+            )
+
+        events = query_use_case.stream(
+            message=message,
+            top_k=request.top_k,
+            llm=llm,
+        )
+
+        # The answer (and title) are produced in the background so they
+        # are saved even if the client disconnects before the end.
+        return StreamingResponse(
+            answer_runner.run(
+                stream_query_events(
+                    events=events,
+                    generate_title=lambda: title_service.maybe_generate_title(
+                        session=session,
+                        question=request.question,
+                        llm=llm,
+                    ),
+                )
             ),
             media_type="text/event-stream",
             headers=SSE_HEADERS,

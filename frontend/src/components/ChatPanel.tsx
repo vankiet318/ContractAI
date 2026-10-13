@@ -3,11 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { listMessages, setMessageFeedback, streamQuery } from "../api/query";
-import { toErrorMessage } from "../api/client";
+import { ApiError, toErrorMessage } from "../api/client";
 import { MAX_QUESTION_LENGTH } from "../constants";
 import { useLlmProvider } from "../hooks/useLlmProvider";
 import { generateId } from "../lib/id";
-import type { ChatMessage, Citation, MessageFeedback } from "../types";
+import type {
+  ChatMessage,
+  ChatMessageRecord,
+  Citation,
+  MessageFeedback,
+} from "../types";
 import { CitationList } from "./CitationList";
 import { LoadErrorMessage } from "./LoadErrorMessage";
 import { TypingIndicator } from "./TypingIndicator";
@@ -40,6 +45,47 @@ function useThinkingLabel(isActive: boolean): string {
 }
 
 const FEEDBACK_THANKS_DURATION_MS = 2000;
+
+const ANSWER_POLL_INTERVAL_MS = 1500;
+
+function isUnfinished(message: ChatMessage): boolean {
+  return message.status === "pending" || message.status === "streaming";
+}
+
+function toChatMessage(record: ChatMessageRecord): ChatMessage {
+  const message = {
+    id: record.message_id,
+    messageId: record.message_id,
+    question: record.question,
+    citations: record.citations,
+    feedback: record.feedback,
+  };
+
+  if (record.status === "failed") {
+    return {
+      ...message,
+      status: "error",
+      answer: null,
+      errorMessage: record.error_message,
+    };
+  }
+
+  if (record.status === "pending") {
+    return {
+      ...message,
+      status: record.answer ? "streaming" : "pending",
+      answer: record.answer || null,
+      errorMessage: null,
+    };
+  }
+
+  return {
+    ...message,
+    status: "done",
+    answer: record.answer,
+    errorMessage: null,
+  };
+}
 
 function FeedbackButtons({
   initialFeedback,
@@ -138,20 +184,34 @@ export function ChatPanel({
   sessionId,
   onCitationSelect,
   onTitleGenerated,
+  onAnswerSavedWhileAway,
 }: {
   sessionId: string;
   onCitationSelect: (citation: Citation) => void;
   onTitleGenerated?: (title: string) => void;
+  /** An answer this panel was not streaming has finished on the server;
+   * the session title may have changed with it. */
+  onAnswerSavedWhileAway?: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoadAttempt, setHistoryLoadAttempt] = useState(0);
+  const [pollAttempt, setPollAttempt] = useState(0);
   const [question, setQuestion] = useState("");
-  const [isAsking, setIsAsking] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const hasUnfinishedAnswer = messages.some(isUnfinished);
+  // An answer can be in progress on the server without a stream here
+  // (the chat was reopened mid-answer), so both count as busy.
+  const isAsking = isStreaming || hasUnfinishedAnswer;
   const thinkingLabel = useThinkingLabel(isAsking);
   const llmProvider = useLlmProvider();
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const onAnswerSavedWhileAwayRef = useRef(onAnswerSavedWhileAway);
+
+  useEffect(() => {
+    onAnswerSavedWhileAwayRef.current = onAnswerSavedWhileAway;
+  });
 
   useEffect(() => {
     let isCancelled = false;
@@ -160,18 +220,7 @@ export function ChatPanel({
       .then((history) => {
         if (isCancelled) return;
 
-        setMessages(
-          history.map((record) => ({
-            id: record.message_id,
-            messageId: record.message_id,
-            question: record.question,
-            status: "done",
-            answer: record.answer,
-            citations: record.citations,
-            errorMessage: null,
-            feedback: record.feedback,
-          })),
-        );
+        setMessages(history.map(toChatMessage));
       })
       .catch((error) => {
         if (isCancelled) return;
@@ -188,6 +237,36 @@ export function ChatPanel({
       isCancelled = true;
     };
   }, [sessionId, historyLoadAttempt]);
+
+  // Without a stream to follow, poll the history until the server
+  // finishes the answer.
+  useEffect(() => {
+    if (isStreaming || !hasUnfinishedAnswer) return;
+
+    let isCancelled = false;
+
+    const timer = setTimeout(() => {
+      listMessages(sessionId)
+        .then((history) => {
+          if (isCancelled) return;
+
+          const next = history.map(toChatMessage);
+          setMessages(next);
+
+          if (!next.some(isUnfinished)) {
+            onAnswerSavedWhileAwayRef.current?.();
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) setPollAttempt((attempt) => attempt + 1);
+        });
+    }, ANSWER_POLL_INTERVAL_MS);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [sessionId, isStreaming, hasUnfinishedAnswer, messages, pollAttempt]);
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -221,7 +300,7 @@ export function ChatPanel({
       },
     ]);
     setQuestion("");
-    setIsAsking(true);
+    setIsStreaming(true);
 
     const updateMessage = (update: (message: ChatMessage) => ChatMessage) =>
       setMessages((previous) =>
@@ -249,6 +328,21 @@ export function ChatPanel({
         onTitle: (title) => onTitleGenerated?.(title),
       });
     } catch (err) {
+      // A dropped connection does not stop the server: if it accepted the
+      // question, the history has it and polling picks up the answer.
+      if (err instanceof ApiError && err.status === 0) {
+        try {
+          const history = (await listMessages(sessionId)).map(toChatMessage);
+
+          if (history.some(isUnfinished)) {
+            setMessages(history);
+            return;
+          }
+        } catch {
+          // Unreachable server: report the original error below.
+        }
+      }
+
       updateMessage((message) => ({
         ...message,
         status: "error",
@@ -258,7 +352,7 @@ export function ChatPanel({
         ),
       }));
     } finally {
-      setIsAsking(false);
+      setIsStreaming(false);
     }
   };
 

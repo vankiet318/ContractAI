@@ -93,6 +93,15 @@ class ChatMessageORM(Base):
         String(16),
         default=None,
     )
+    status: Mapped[str] = mapped_column(
+        String(16),
+        default="done",
+        server_default="done",
+    )
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        default=None,
+    )
 
     session: Mapped["SessionORM"] = relationship(
         back_populates="messages",

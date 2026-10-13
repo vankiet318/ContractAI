@@ -5,9 +5,11 @@ from fastapi.testclient import TestClient
 
 from app.api.query import create_query_router
 from app.generation.registry import LLMProvider, LLMRegistry
+from app.query.background import BackgroundStreamRunner
 from app.query.use_case import (
     AnswerCompleted,
     AnswerDelta,
+    AnswerInProgressError,
     AnswerStarted,
     NoReadyDocumentsError,
 )
@@ -15,20 +17,27 @@ from app.query.use_case import (
 
 class FakeUseCase:
 
-    def __init__(self, has_documents: bool):
+    def __init__(self, has_documents: bool, answer_in_progress: bool = False):
         self.has_documents = has_documents
+        self.answer_in_progress = answer_in_progress
         self.llm = None
 
-    def stream(self, session_id, question, top_k, llm=None):
-        self.llm = llm
-
+    def start(self, session_id, question):
         if not self.has_documents:
             raise NoReadyDocumentsError(session_id)
+
+        if self.answer_in_progress:
+            raise AnswerInProgressError(session_id)
+
+        return SimpleNamespace(message_id="m1", session_id=session_id)
+
+    def stream(self, message, top_k, llm=None):
+        self.llm = llm
 
         return iter([
             AnswerStarted(citations=[]),
             AnswerDelta(text="Trả lời"),
-            AnswerCompleted(message_id="m1"),
+            AnswerCompleted(message_id=message.message_id),
         ])
 
 
@@ -58,6 +67,7 @@ def build_client(
             title_service=SimpleNamespace(maybe_generate_title=lambda **kwargs: None),
             get_owned_session=lambda: SimpleNamespace(session_id="s"),
             query_rate_limit=lambda: None,
+            answer_runner=BackgroundStreamRunner(max_workers=2),
         ),
         prefix="/sessions",
     )
@@ -84,6 +94,18 @@ def test_query_without_ready_documents_is_rejected_before_streaming():
     )
 
     assert response.status_code == 409
+
+
+def test_query_while_previous_answer_is_pending_is_rejected():
+    use_case = FakeUseCase(has_documents=True, answer_in_progress=True)
+
+    response = build_client(has_documents=True, use_case=use_case).post(
+        "/sessions/s/query",
+        json={"question": "Phạt vi phạm?"},
+    )
+
+    assert response.status_code == 409
+    assert "đang được trả lời" in response.json()["detail"]
 
 
 def test_query_uses_the_chosen_provider():
