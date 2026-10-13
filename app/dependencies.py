@@ -212,6 +212,7 @@ hybrid_retriever = HybridRetriever(
 reranker_model = CrossEncoderReranker(
     model_name=reranking_config.model_name,
     device=reranking_config.device,
+    workers=reranking_config.workers,
 )
 
 reranking_service = RerankingService(

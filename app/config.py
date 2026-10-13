@@ -166,6 +166,9 @@ class RerankingConfig:
     # the question. Not yet calibrated on labeled data.
     min_score: float = 0.05
 
+    # Pairs scored at once, shared by all requests.
+    workers: int = 4
+
     @classmethod
     def from_env(cls) -> "RerankingConfig":
         return cls(
@@ -176,6 +179,9 @@ class RerankingConfig:
             device=os.getenv("RERANKER_DEVICE", "cpu"),
             min_score=float(
                 os.getenv("RERANK_MIN_SCORE", "0.05")
+            ),
+            workers=int(
+                os.getenv("RERANKER_WORKERS", "4")
             ),
         )
 
