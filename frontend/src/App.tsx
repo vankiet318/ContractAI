@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toErrorMessage } from "./api/client";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { LoginPage } from "./components/LoginPage";
@@ -35,12 +35,22 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     (session) => session.session_id === sessionPendingDeleteId,
   );
 
+  const isCreatingRef = useRef(false);
+
   const handleCreate = async () => {
+    // A double click would otherwise race two creates past the server's
+    // reuse of an empty session.
+    if (isCreatingRef.current) return;
+    isCreatingRef.current = true;
+
     try {
+      // The server returns the existing empty session if there is one.
       const session = await create("Đoạn chat mới");
       setSelectedSessionId(session.session_id);
     } catch (error) {
       showToast(toErrorMessage(error, "Không tạo được đoạn chat."), "error");
+    } finally {
+      isCreatingRef.current = false;
     }
   };
 

@@ -1,4 +1,4 @@
-from app.db.models import SessionORM
+from app.db.models import ChatMessageORM, DocumentORM, SessionORM
 from app.db.session import get_db_session
 from app.sessions.models import ChatSession
 
@@ -30,6 +30,21 @@ class SessionRepository:
                 .all()
             )
             return [self._to_domain(row) for row in rows]
+
+    def find_newest_empty(self, user_id: str) -> ChatSession | None:
+        """Newest session of the user with no documents and no messages."""
+        with get_db_session() as db:
+            row = (
+                db.query(SessionORM)
+                .filter(
+                    SessionORM.user_id == user_id,
+                    ~SessionORM.documents.any(),
+                    ~SessionORM.messages.any(),
+                )
+                .order_by(SessionORM.created_at.desc())
+                .first()
+            )
+            return self._to_domain(row) if row else None
 
     def update_title(
         self,

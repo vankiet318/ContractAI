@@ -31,7 +31,7 @@ def create_sessions_router(
         request: CreateSessionRequest,
         current_user: User = Depends(get_current_user),
     ):
-        session = session_service.create(
+        session = session_service.get_or_create_empty(
             user_id=current_user.user_id,
             title=request.title,
         )

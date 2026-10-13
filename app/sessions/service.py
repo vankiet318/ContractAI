@@ -22,6 +22,16 @@ class SessionService:
 
         return session
 
+    def get_or_create_empty(self, user_id: str, title: str) -> ChatSession:
+        """Reuse the user's empty session, if any, so repeatedly pressing
+        "new chat" does not pile up blank sessions."""
+        session = self.repository.find_newest_empty(user_id)
+
+        if session is not None:
+            return session
+
+        return self.create(user_id=user_id, title=title)
+
     def list_for_user(self, user_id: str) -> list[ChatSession]:
         return sorted(
             self.repository.list_by_user(user_id),
