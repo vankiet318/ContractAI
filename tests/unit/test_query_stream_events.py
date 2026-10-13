@@ -1,4 +1,5 @@
 import json
+import time
 
 from app.api.query import UNEXPECTED_ERROR_MESSAGE, stream_query_events
 from app.generation.errors import LLMError, LLMErrorCode
@@ -44,15 +45,36 @@ def test_failure_mid_stream_becomes_error_event_without_title():
         yield AnswerStarted(citations=[])
         raise RuntimeError("Gemini down")
 
-    titles_requested = []
-
     stream = stream_query_events(
         failing_events(),
-        generate_title=lambda: titles_requested.append(1),
+        generate_title=lambda: "Phạt vi phạm",
     )
 
     assert [name for name, _ in parse(list(stream))] == ["citations", "error"]
-    assert titles_requested == []
+
+
+def test_title_is_generated_while_the_answer_is_retrieved():
+
+    title_started = []
+
+    def generate_title():
+        title_started.append(True)
+        return "Phạt vi phạm"
+
+    def events():
+        # Give the title thread a moment to pick the job up.
+        for _ in range(100):
+            if title_started:
+                break
+            time.sleep(0.01)
+
+        assert title_started, "title should start before the answer ends"
+        yield AnswerStarted(citations=[])
+        yield AnswerCompleted(message_id="m1")
+
+    stream = stream_query_events(events(), generate_title=generate_title)
+
+    assert parse(list(stream))[-1] == ("title", {"title": "Phạt vi phạm"})
 
 
 def test_llm_error_is_reported_with_its_own_message():

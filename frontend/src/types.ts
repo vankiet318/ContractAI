@@ -30,10 +30,15 @@ export type MessageFeedback = "like" | "dislike";
 export interface ChatMessageRecord {
   message_id: string;
   question: string;
+  /** For a pending message: the text generated so far. */
   answer: string;
   citations: Citation[];
   created_at: string;
   feedback: MessageFeedback | null;
+  /** pending: still being answered on the server, even if this page did
+   * not send it (another chat was open, or the page was reloaded). */
+  status: "pending" | "done" | "failed";
+  error_message: string | null;
 }
 
 /** pending: retrieving, no text yet. streaming: answer text arriving.

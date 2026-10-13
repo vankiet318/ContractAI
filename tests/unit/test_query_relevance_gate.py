@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from app.documents.models import DocumentStatus
 from app.generation.citation_builder import CitationBuilder
 from app.generation.context_builder import ContextBuilder
@@ -41,37 +43,39 @@ class FakeLLM:
         yield "0,05%"
 
 
-def build_use_case(rerank_scores: list[float], llm: FakeLLM) -> QuerySessionUseCase:
+@pytest.fixture
+def build_use_case(message_service):
 
-    results = [
-        make_result(f"c{index}", score)
-        for index, score in enumerate(rerank_scores)
-    ]
+    def build(rerank_scores: list[float], llm: FakeLLM) -> QuerySessionUseCase:
+        results = [
+            make_result(f"c{index}", score)
+            for index, score in enumerate(rerank_scores)
+        ]
 
-    return QuerySessionUseCase(
-        document_service=SimpleNamespace(
-            list_by_session=lambda session_id: [
-                SimpleNamespace(status=DocumentStatus.READY)
-            ],
-        ),
-        message_service=SimpleNamespace(
-            list_by_session=lambda session_id: [],
-            create=lambda **kwargs: SimpleNamespace(message_id="m1", **kwargs),
-        ),
-        hybrid_retriever=SimpleNamespace(retrieve=lambda **kwargs: results),
-        reranking_service=SimpleNamespace(rerank=lambda **kwargs: results),
-        context_builder=ContextBuilder(),
-        prompt_builder=PromptBuilder(),
-        llm=llm,
-        citation_builder=CitationBuilder(),
-        candidate_limit=20,
-        limit=20,
-        min_relevance_score=MIN_SCORE,
-    )
+        return QuerySessionUseCase(
+            document_service=SimpleNamespace(
+                list_by_session=lambda session_id: [
+                    SimpleNamespace(status=DocumentStatus.READY)
+                ],
+            ),
+            message_service=message_service,
+            hybrid_retriever=SimpleNamespace(retrieve=lambda **kwargs: results),
+            reranking_service=SimpleNamespace(rerank=lambda **kwargs: results),
+            context_builder=ContextBuilder(),
+            prompt_builder=PromptBuilder(),
+            llm=llm,
+            citation_builder=CitationBuilder(),
+            candidate_limit=20,
+            limit=20,
+            min_relevance_score=MIN_SCORE,
+        )
+
+    return build
 
 
 def collect(use_case: QuerySessionUseCase, question: str):
-    events = list(use_case.stream(session_id="s", question=question, top_k=5))
+    message = use_case.start(session_id="s", question=question)
+    events = list(use_case.stream(message=message, top_k=5))
 
     started = events[0]
     text = "".join(event.text for event in events if isinstance(event, AnswerDelta))
@@ -83,7 +87,7 @@ def collect(use_case: QuerySessionUseCase, question: str):
     return started.citations, text, completed
 
 
-def test_off_topic_question_skips_llm_and_citations():
+def test_off_topic_question_skips_llm_and_citations(build_use_case):
 
     llm = FakeLLM()
     use_case = build_use_case([0.01, 0.002], llm)
@@ -95,7 +99,7 @@ def test_off_topic_question_skips_llm_and_citations():
     assert llm.calls == 0
 
 
-def test_only_relevant_chunks_are_cited():
+def test_only_relevant_chunks_are_cited(build_use_case, message_service):
 
     llm = FakeLLM()
     use_case = build_use_case([0.9, 0.3, 0.01], llm)
@@ -104,5 +108,9 @@ def test_only_relevant_chunks_are_cited():
 
     assert llm.calls == 1
     assert text == "Phạt 0,05%"
-    assert completed.message_id == "m1"
     assert [citation.chunk_id for citation in citations] == ["c0", "c1"]
+
+    [saved] = message_service.list_by_session("s")
+    assert saved.message_id == completed.message_id
+    assert saved.status == "done"
+    assert saved.answer == "Phạt 0,05%"

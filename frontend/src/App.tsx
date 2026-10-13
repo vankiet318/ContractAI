@@ -17,6 +17,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     isLoading,
     loadError,
     reload,
+    refresh,
     create,
     remove,
     setSessionTitle,
@@ -93,6 +94,10 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           onTitleGenerated={(title) =>
             setSessionTitle(selectedSession.session_id, title)
           }
+          onAnswerSavedWhileAway={() => {
+            // Best-effort: picks up a title generated with the answer.
+            refresh().catch(() => {});
+          }}
         />
       ) : (
         <main className="flex-1 flex items-center justify-center text-sm text-slate-500">
