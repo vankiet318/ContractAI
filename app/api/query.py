@@ -24,6 +24,7 @@ from app.query.use_case import (
 )
 from app.sessions.models import ChatSession
 from app.sessions.title_service import SessionTitleService
+from app.usage.service import UsageService
 
 
 MAX_QUESTION_LENGTH = 2000
@@ -149,6 +150,7 @@ def create_query_router(
     get_owned_session: Callable[..., ChatSession],
     query_rate_limit: Callable[..., None],
     answer_runner: BackgroundStreamRunner,
+    usage_service: UsageService,
 ) -> APIRouter:
 
     router = APIRouter()
@@ -240,6 +242,8 @@ def create_query_router(
                     "Vui lòng đợi rồi hỏi tiếp."
                 ),
             )
+
+        usage_service.record(session.user_id, "query")
 
         events = query_use_case.stream(
             message=message,

@@ -3,6 +3,7 @@ from typing import Annotated, Callable
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import AfterValidator, BaseModel, EmailStr, Field
 
+from app.auth.models import User, UserRole
 from app.auth.security import create_access_token
 from app.auth.service import (
     AccountLockedError,
@@ -40,6 +41,12 @@ class UserResponse(BaseModel):
     email: str
 
 
+class CurrentUserResponse(BaseModel):
+    user_id: str
+    email: str
+    role: UserRole
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -49,6 +56,7 @@ def create_auth_router(
     auth_service: AuthService,
     login_rate_limit: Callable[..., None],
     register_rate_limit: Callable[..., None],
+    get_current_user: Callable[..., User],
 ) -> APIRouter:
 
     router = APIRouter()
@@ -105,5 +113,13 @@ def create_auth_router(
         access_token = create_access_token(user.user_id)
 
         return TokenResponse(access_token=access_token)
+
+    @router.get("/me", response_model=CurrentUserResponse)
+    def me(current_user: User = Depends(get_current_user)):
+        return CurrentUserResponse(
+            user_id=current_user.user_id,
+            email=current_user.email,
+            role=current_user.role,
+        )
 
     return router

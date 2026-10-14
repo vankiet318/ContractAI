@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { LayoutDashboard, Plus, X } from "lucide-react";
 import type { ChatSessionSummary } from "../types";
 import { AppLogo } from "./AppLogo";
 import { LoadErrorMessage } from "./LoadErrorMessage";
@@ -14,6 +14,8 @@ interface SessionListProps {
   onCreate: () => void;
   onDelete: (sessionId: string) => void;
   onLogout: () => void;
+  /** Shown only to admins. */
+  onOpenAdmin?: () => void;
 }
 
 export function SessionList({
@@ -26,6 +28,7 @@ export function SessionList({
   onCreate,
   onDelete,
   onLogout,
+  onOpenAdmin,
 }: SessionListProps) {
   return (
     <aside className="w-64 shrink-0 border-r border-slate-200 flex flex-col h-full">
@@ -82,7 +85,13 @@ export function SessionList({
         </ul>
       </div>
 
-      <div className="p-3 border-t border-slate-200">
+      <div className="p-3 border-t border-slate-200 flex flex-col gap-2">
+        {onOpenAdmin && (
+          <Button variant="secondary" size="sm" onClick={onOpenAdmin}>
+            <LayoutDashboard className="w-4 h-4" />
+            Quản trị
+          </Button>
+        )}
         <TextButton onClick={onLogout} className="w-full">
           Đăng xuất
         </TextButton>

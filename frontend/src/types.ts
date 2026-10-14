@@ -69,3 +69,54 @@ export interface LlmProviders {
   default: string;
   providers: LlmProvider[];
 }
+
+export type UserRole = "user" | "admin";
+
+export interface CurrentUser {
+  user_id: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface DailyUsage {
+  /** YYYY-MM-DD, in the server's usage time zone. */
+  date: string;
+  queries: number;
+  uploads: number;
+}
+
+export interface AdminOverview {
+  days: number;
+  total_users: number;
+  new_users: number;
+  active_users: number;
+  queries: number;
+  uploads: number;
+  likes: number;
+  dislikes: number;
+  daily: DailyUsage[];
+}
+
+export interface AdminUser {
+  user_id: string;
+  email: string;
+  role: UserRole;
+  created_at: string;
+  is_locked: boolean;
+}
+
+export interface AdminUserSummary extends AdminUser {
+  /** Within the selected window. */
+  queries: number;
+  uploads: number;
+  /** Since the account was created. */
+  total_queries: number;
+  total_uploads: number;
+  last_active_at: string | null;
+}
+
+export interface AdminUserUsage {
+  user: AdminUser;
+  days: number;
+  daily: DailyUsage[];
+}

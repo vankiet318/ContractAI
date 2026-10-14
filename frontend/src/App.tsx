@@ -1,16 +1,24 @@
 import { useRef, useState } from "react";
 import { toErrorMessage } from "./api/client";
+import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { LoginPage } from "./components/LoginPage";
 import { RegisterPage } from "./components/RegisterPage";
 import { SessionList } from "./components/SessionList";
 import { SessionMain } from "./components/SessionMain";
+import { useAdminRoute } from "./hooks/useAdminRoute";
 import { useAuth } from "./hooks/useAuth";
 import { useSelectedSessionId } from "./hooks/useSelectedSessionId";
 import { useSessions } from "./hooks/useSessions";
 import { useToast } from "./hooks/useToast";
 
-function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+function AuthenticatedApp({
+  onLogout,
+  onOpenAdmin,
+}: {
+  onLogout: () => void;
+  onOpenAdmin?: () => void;
+}) {
   const { showToast } = useToast();
   const {
     sessions,
@@ -86,6 +94,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         onCreate={handleCreate}
         onDelete={setSessionPendingDeleteId}
         onLogout={onLogout}
+        onOpenAdmin={onOpenAdmin}
       />
 
       <ConfirmDialog
@@ -119,8 +128,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 }
 
 export function App() {
-  const { isAuthenticated, login, logout } = useAuth();
+  const { isAuthenticated, user, login, logout } = useAuth();
   const [authView, setAuthView] = useState<"login" | "register">("login");
+  const [isAdminView, setIsAdminView] = useAdminRoute();
 
   if (!isAuthenticated) {
     return authView === "login" ? (
@@ -133,7 +143,23 @@ export function App() {
     );
   }
 
-  return <AuthenticatedApp onLogout={logout} />;
+  const isAdmin = user?.role === "admin";
+
+  if (isAdmin && isAdminView) {
+    return (
+      <AdminDashboard
+        currentUserId={user.user_id}
+        onBack={() => setIsAdminView(false)}
+      />
+    );
+  }
+
+  return (
+    <AuthenticatedApp
+      onLogout={logout}
+      onOpenAdmin={isAdmin ? () => setIsAdminView(true) : undefined}
+    />
+  );
 }
 
 export default App;

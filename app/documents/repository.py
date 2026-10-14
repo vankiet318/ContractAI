@@ -50,6 +50,17 @@ class DocumentRepository:
             row.status = document.status.value
             row.error_message = document.error_message
 
+    def fail_all_processing(self, error_message: str) -> int:
+        with get_db_session() as db:
+            return (
+                db.query(DocumentORM)
+                .filter(DocumentORM.status == DocumentStatus.PROCESSING.value)
+                .update({
+                    "status": DocumentStatus.FAILED.value,
+                    "error_message": error_message,
+                })
+            )
+
     def delete(self, document_id: str) -> None:
         with get_db_session() as db:
             row = db.get(DocumentORM, document_id)

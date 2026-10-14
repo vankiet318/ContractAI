@@ -1,4 +1,7 @@
+from datetime import datetime
 from typing import Any
+
+from sqlalchemy import func
 
 from app.db.models import ChatMessageORM
 from app.db.session import get_db_session
@@ -79,6 +82,20 @@ class ChatMessageRepository:
                 .update({"feedback": feedback})
             )
             return updated_rows > 0
+
+    def count_feedback_since(self, since: datetime) -> dict[str, int]:
+        """Messages asked since `since`, counted by feedback given."""
+        with get_db_session() as db:
+            rows = (
+                db.query(ChatMessageORM.feedback, func.count())
+                .filter(
+                    ChatMessageORM.created_at >= since,
+                    ChatMessageORM.feedback.is_not(None),
+                )
+                .group_by(ChatMessageORM.feedback)
+                .all()
+            )
+            return {feedback: count for feedback, count in rows}
 
     @staticmethod
     def _to_domain(row: ChatMessageORM) -> ChatMessage:

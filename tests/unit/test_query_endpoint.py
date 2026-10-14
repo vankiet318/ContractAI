@@ -45,9 +45,19 @@ GEMINI_LLM = object()
 GROQ_LLM = object()
 
 
+class FakeUsageService:
+
+    def __init__(self):
+        self.recorded = []
+
+    def record(self, user_id, kind):
+        self.recorded.append((user_id, kind))
+
+
 def build_client(
     has_documents: bool,
     use_case: FakeUseCase | None = None,
+    usage_service: FakeUsageService | None = None,
 ) -> TestClient:
     app = FastAPI()
 
@@ -65,9 +75,10 @@ def build_client(
             llm_registry=registry,
             message_service=SimpleNamespace(),
             title_service=SimpleNamespace(maybe_generate_title=lambda **kwargs: None),
-            get_owned_session=lambda: SimpleNamespace(session_id="s"),
+            get_owned_session=lambda: SimpleNamespace(session_id="s", user_id="u"),
             query_rate_limit=lambda: None,
             answer_runner=BackgroundStreamRunner(max_workers=2),
+            usage_service=usage_service or FakeUsageService(),
         ),
         prefix="/sessions",
     )
@@ -137,3 +148,25 @@ def test_query_with_unknown_provider_is_rejected():
     )
 
     assert response.status_code == 400
+
+
+def test_accepted_query_is_counted_as_usage_of_the_session_owner():
+    usage = FakeUsageService()
+
+    build_client(has_documents=True, usage_service=usage).post(
+        "/sessions/s/query",
+        json={"question": "Phạt vi phạm?"},
+    )
+
+    assert usage.recorded == [("u", "query")]
+
+
+def test_rejected_query_is_not_counted_as_usage():
+    usage = FakeUsageService()
+
+    build_client(has_documents=False, usage_service=usage).post(
+        "/sessions/s/query",
+        json={"question": "Phạt vi phạm?"},
+    )
+
+    assert usage.recorded == []
