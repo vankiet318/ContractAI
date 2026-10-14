@@ -231,6 +231,9 @@ class StorageConfig:
 
     max_upload_mb: int = 20
 
+    # Documents indexed at once; later uploads wait their turn.
+    indexing_workers: int = 1
+
     @classmethod
     def from_env(cls) -> "StorageConfig":
         return cls(
@@ -240,6 +243,9 @@ class StorageConfig:
             ),
             max_upload_mb=int(
                 os.getenv("UPLOAD_MAX_MB", "20")
+            ),
+            indexing_workers=int(
+                os.getenv("INDEXING_WORKERS", "1")
             ),
         )
 
@@ -317,4 +323,30 @@ class LLMConfig:
     def from_env(cls) -> "LLMConfig":
         return cls(
             default_provider=os.getenv("LLM_DEFAULT_PROVIDER", "gemini"),
+        )
+
+
+@dataclass
+class LogConfig:
+
+    # Recent log lines kept in memory for the admin log page.
+    buffer_size: int = 2000
+
+    @classmethod
+    def from_env(cls) -> "LogConfig":
+        return cls(
+            buffer_size=int(os.getenv("LOG_BUFFER_SIZE", "2000")),
+        )
+
+
+@dataclass
+class UsageConfig:
+
+    # IANA time zone the admin dashboard counts days in.
+    timezone: str = "Asia/Ho_Chi_Minh"
+
+    @classmethod
+    def from_env(cls) -> "UsageConfig":
+        return cls(
+            timezone=os.getenv("USAGE_TIMEZONE", "Asia/Ho_Chi_Minh"),
         )

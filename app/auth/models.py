@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
+
+UserRole = Literal["user", "admin"]
 
 
 @dataclass
@@ -10,6 +13,11 @@ class User:
     created_at: datetime
     failed_login_attempts: int = 0
     locked_until: datetime | None = None
+    role: UserRole = "user"
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
 
     def is_locked(self, now: datetime) -> bool:
         return self.locked_until is not None and self.locked_until > now

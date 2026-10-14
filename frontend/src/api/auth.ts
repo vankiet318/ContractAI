@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { CurrentUser } from "../types";
 
 interface TokenResponse {
   access_token: string;
@@ -25,4 +26,8 @@ export function login(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+}
+
+export function fetchCurrentUser(): Promise<CurrentUser> {
+  return apiClient.request<CurrentUser>("/auth/me");
 }

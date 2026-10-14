@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from typing import Callable
 from uuid import uuid4
@@ -11,15 +10,13 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import FileResponse
-from starlette.concurrency import run_in_threadpool
 
 from app.documents.deletion_service import DocumentDeletionService
-from app.documents.models import PROCESSING_FAILED_MESSAGE, Document
+from app.documents.indexing_runner import BackgroundIndexer
+from app.documents.models import Document
 from app.documents.service import DocumentService
-from app.ingestion.indexing_service import DocumentIndexingService
 from app.sessions.models import ChatSession
-
-logger = logging.getLogger(__name__)
+from app.usage.service import UsageService
 
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
@@ -72,8 +69,9 @@ def _get_owned_document(
 
 def create_documents_router(
     document_service: DocumentService,
-    indexing_service: DocumentIndexingService,
+    indexer: BackgroundIndexer,
     deletion_service: DocumentDeletionService,
+    usage_service: UsageService,
     get_owned_session: Callable[..., ChatSession],
     upload_dir: Path,
     max_upload_mb: int,
@@ -81,7 +79,7 @@ def create_documents_router(
 
     router = APIRouter()
 
-    @router.post("/{session_id}/documents")
+    @router.post("/{session_id}/documents", status_code=202)
     async def upload_document(
         session_id: str,
         file: UploadFile = File(...),
@@ -114,34 +112,24 @@ def create_documents_router(
                 detail=f"File vượt quá giới hạn {max_upload_mb} MB.",
             )
 
-        document_service.create(
+        document = document_service.create(
             document_id=document_id,
             session_id=session_id,
             filename=filename,
             file_path=str(file_path),
         )
 
-        try:
-            await run_in_threadpool(
-                indexing_service.index,
-                file_path=str(file_path),
-                document_id=document_id,
-                session_id=session_id,
-            )
+        usage_service.record(session.user_id, "upload")
 
-            document = document_service.mark_ready(document_id)
-
-        except Exception:
-            logger.exception("Indexing failed for document %s", document_id)
-            document = document_service.mark_failed(
-                document_id=document_id,
-                error_message=PROCESSING_FAILED_MESSAGE,
-            )
+        # Indexing can take minutes; the client polls the document list
+        # until the status leaves PROCESSING.
+        indexer.submit(document)
 
         return {
             "document_id": document.document_id,
             "filename": document.filename,
             "status": document.status,
+            "created_at": document.created_at,
             "error_message": document.error_message,
         }
 

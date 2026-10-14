@@ -1,5 +1,6 @@
 from datetime import timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from qdrant_client import QdrantClient
 
@@ -14,10 +15,12 @@ from app.config import (
     RateLimitConfig,
     RerankingConfig,
     RetrievalConfig,
+    LogConfig,
     StorageConfig,
+    UsageConfig,
 )
 
-from app.auth.dependencies import create_get_current_user
+from app.auth.dependencies import create_get_current_user, create_require_admin
 from app.auth.repository import UserRepository
 from app.auth.service import AuthService, LoginLockoutPolicy
 
@@ -47,6 +50,7 @@ from app.embedding.bge_m3 import BGEM3Embedding
 from app.vectorstore.qdrant_repository import QdrantRepository
 
 from app.documents.deletion_service import DocumentDeletionService
+from app.documents.indexing_runner import BackgroundIndexer
 from app.documents.repository import DocumentRepository
 from app.documents.service import DocumentService
 
@@ -70,6 +74,12 @@ from app.generation.groq_client import GroqClient
 from app.generation.registry import LLMProvider, LLMRegistry
 from app.generation.citation_builder import CitationBuilder
 
+from app.usage.repository import UsageRepository
+from app.usage.service import UsageService
+
+from app.admin.service import AdminService
+from app.logs.buffer import LogBuffer
+
 from app.rate_limit.dependencies import (
     create_ip_rate_limit,
     create_user_rate_limit,
@@ -81,6 +91,7 @@ from app.api.auth import create_auth_router
 from app.api.sessions import create_sessions_router
 from app.api.documents import create_documents_router
 from app.api.llm import create_llm_router
+from app.api.admin import create_admin_router
 
 embedding_config = EmbeddingConfig.from_env()
 qdrant_config = QdrantConfig.from_env()
@@ -93,6 +104,11 @@ retrieval_config = RetrievalConfig.from_env()
 storage_config = StorageConfig.from_env()
 auth_config = AuthConfig.from_env()
 rate_limit_config = RateLimitConfig.from_env()
+usage_config = UsageConfig.from_env()
+log_config = LogConfig.from_env()
+
+# Installed on the loggers at startup (app.main), once uvicorn has set them up.
+log_buffer = LogBuffer(capacity=log_config.buffer_size)
 
 upload_dir = Path(storage_config.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
@@ -173,7 +189,29 @@ message_service = ChatMessageService(
     repository=message_repository,
 )
 
+indexer = BackgroundIndexer(
+    indexing_service=indexing_service,
+    document_service=document_service,
+    vector_store=vector_store,
+    max_workers=storage_config.indexing_workers,
+)
+
+usage_service = UsageService(
+    repository=UsageRepository(),
+    timezone=ZoneInfo(usage_config.timezone),
+)
+
+admin_service = AdminService(
+    user_repository=user_repository,
+    message_repository=message_repository,
+    usage_service=usage_service,
+    session_service=session_service,
+    session_deletion_service=session_deletion_service,
+)
+
 get_current_user = create_get_current_user(user_repository)
+
+require_admin = create_require_admin(get_current_user)
 
 get_owned_session = create_get_owned_session(
     session_service=session_service,
@@ -314,6 +352,7 @@ auth_router = create_auth_router(
     auth_service=auth_service,
     login_rate_limit=login_rate_limit,
     register_rate_limit=register_rate_limit,
+    get_current_user=get_current_user,
 )
 
 sessions_router = create_sessions_router(
@@ -324,8 +363,9 @@ sessions_router = create_sessions_router(
 
 documents_router = create_documents_router(
     document_service=document_service,
-    indexing_service=indexing_service,
+    indexer=indexer,
     deletion_service=document_deletion_service,
+    usage_service=usage_service,
     get_owned_session=get_owned_session,
     upload_dir=upload_dir,
     max_upload_mb=storage_config.max_upload_mb,
@@ -339,9 +379,16 @@ query_router = create_query_router(
     get_owned_session=get_owned_session,
     query_rate_limit=query_rate_limit,
     answer_runner=answer_runner,
+    usage_service=usage_service,
 )
 
 llm_router = create_llm_router(
     llm_registry=llm_registry,
     get_current_user=get_current_user,
+)
+
+admin_router = create_admin_router(
+    admin_service=admin_service,
+    log_buffer=log_buffer,
+    require_admin=require_admin,
 )

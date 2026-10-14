@@ -5,19 +5,28 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.dependencies import (
+    admin_router,
     auth_router,
+    document_service,
     documents_router,
     llm_router,
+    log_buffer,
     message_service,
     query_router,
     sessions_router,
 )
+from app.logs.buffer import install_log_buffer
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Answers still pending from before a restart can never finish.
+    # Here rather than at import: uvicorn has configured its loggers by now.
+    install_log_buffer(log_buffer)
+
+    # Answers and indexing still pending from before a restart can never
+    # finish.
     message_service.fail_interrupted()
+    document_service.fail_interrupted()
     yield
 
 
@@ -62,4 +71,10 @@ app.include_router(
     llm_router,
     prefix="/llm",
     tags=["LLM"],
+)
+
+app.include_router(
+    admin_router,
+    prefix="/admin",
+    tags=["Admin"],
 )

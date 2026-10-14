@@ -25,18 +25,15 @@ export function UploadButton({
     setIsUploading(true);
 
     try {
-      const uploaded = await uploadDocument(sessionId, file);
+      await uploadDocument(sessionId, file);
       onUploaded();
 
-      // Indexing errors come back as a FAILED document, not an HTTP error.
-      if (uploaded.status === "failed") {
-        showToast(
-          uploaded.error_message ?? `Không xử lý được "${file.name}".`,
-          "error",
-        );
-      } else {
-        showToast(`Đã tải lên "${file.name}".`, "success");
-      }
+      // Indexing runs on the server afterwards; the document list reports
+      // when it is ready or failed.
+      showToast(
+        `Đã tải lên "${file.name}", đang xử lý tài liệu...`,
+        "success",
+      );
     } catch (error) {
       showToast(toErrorMessage(error, "Tải lên thất bại."), "error");
     } finally {
@@ -58,7 +55,6 @@ export function UploadButton({
       <Button
         size="sm"
         disabled={isUploading}
-        title="Có thể mất một lúc tùy độ dài tài liệu"
         onClick={() => inputRef.current?.click()}
       >
         {isUploading ? (
@@ -66,7 +62,7 @@ export function UploadButton({
         ) : (
           <Upload className="w-4 h-4" />
         )}
-        {isUploading ? "Đang xử lý..." : "Tải lên PDF"}
+        {isUploading ? "Đang tải lên..." : "Tải lên PDF"}
       </Button>
     </div>
   );

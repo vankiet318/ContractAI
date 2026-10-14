@@ -37,3 +37,22 @@ def create_get_current_user(
         return user
 
     return get_current_user
+
+
+def create_require_admin(
+    get_current_user: Callable[..., User],
+) -> Callable[..., User]:
+
+    def require_admin(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=403,
+                detail="Bạn không có quyền truy cập trang quản trị.",
+            )
+
+        return current_user
+
+    return require_admin

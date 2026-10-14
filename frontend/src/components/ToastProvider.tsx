@@ -1,14 +1,14 @@
-import { X } from "lucide-react";
+import { CircleAlert, CircleCheck, Info } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { TOAST_DURATION_MS } from "../constants";
 import { ToastContext, type ToastVariant } from "../hooks/useToast";
 import { generateId } from "../lib/id";
-import { IconButton } from "./ui/Button";
 
-const STYLES: Record<ToastVariant, string> = {
-  error: "border-red-200 bg-red-50 text-red-800",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  info: "border-slate-200 bg-white text-slate-800",
+// Same dark surface as the primary button; only the icon tells variants apart.
+const ICONS: Record<ToastVariant, React.ReactNode> = {
+  error: <CircleAlert className="h-4 w-4 shrink-0 text-red-400" />,
+  success: <CircleCheck className="h-4 w-4 shrink-0 text-emerald-400" />,
+  info: <Info className="h-4 w-4 shrink-0 text-slate-400" />,
 };
 
 interface Toast {
@@ -45,20 +45,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         className="fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2"
       >
         {toasts.map((toast) => (
-          <div
+          <button
             key={toast.id}
+            type="button"
             role={toast.variant === "error" ? "alert" : "status"}
-            className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm shadow-md ${STYLES[toast.variant]}`}
+            title="Bấm để đóng"
+            onClick={() => dismiss(toast.id)}
+            className="flex items-start gap-2.5 rounded-md bg-slate-900 px-3 py-2.5 text-left text-sm text-white shadow-lg"
           >
-            <p className="flex-1 py-0.5">{toast.message}</p>
-            <IconButton
-              title="Đóng"
-              onClick={() => dismiss(toast.id)}
-              className="-my-1 -mr-1.5"
-            >
-              <X className="w-4 h-4" />
-            </IconButton>
-          </div>
+            <span className="mt-0.5">{ICONS[toast.variant]}</span>
+            <span className="flex-1">{toast.message}</span>
+          </button>
         ))}
       </div>
     </ToastContext.Provider>

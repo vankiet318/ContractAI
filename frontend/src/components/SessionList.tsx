@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { LayoutDashboard, Plus, Trash2 } from "lucide-react";
 import type { ChatSessionSummary } from "../types";
 import { AppLogo } from "./AppLogo";
 import { LoadErrorMessage } from "./LoadErrorMessage";
@@ -14,6 +14,8 @@ interface SessionListProps {
   onCreate: () => void;
   onDelete: (sessionId: string) => void;
   onLogout: () => void;
+  /** Shown only to admins. */
+  onOpenAdmin?: () => void;
 }
 
 export function SessionList({
@@ -26,6 +28,7 @@ export function SessionList({
   onCreate,
   onDelete,
   onLogout,
+  onOpenAdmin,
 }: SessionListProps) {
   return (
     <aside className="w-64 shrink-0 border-r border-slate-200 flex flex-col h-full">
@@ -70,19 +73,24 @@ export function SessionList({
                 {session.title}
               </button>
               <IconButton
-                tone="danger"
                 onClick={() => onDelete(session.session_id)}
                 title="Xóa đoạn chat"
-                className="mr-2 opacity-0 group-hover:opacity-100"
+                className="mr-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
               >
-                <X className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
               </IconButton>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="p-3 border-t border-slate-200">
+      <div className="p-3 border-t border-slate-200 flex flex-col gap-2">
+        {onOpenAdmin && (
+          <Button variant="secondary" size="sm" onClick={onOpenAdmin}>
+            <LayoutDashboard className="w-4 h-4" />
+            Quản trị
+          </Button>
+        )}
         <TextButton onClick={onLogout} className="w-full">
           Đăng xuất
         </TextButton>

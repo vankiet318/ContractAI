@@ -24,6 +24,11 @@ class UserORM(Base):
         server_default="0",
     )
     locked_until: Mapped[datetime | None] = mapped_column(default=None)
+    role: Mapped[str] = mapped_column(
+        String(16),
+        default="user",
+        server_default="user",
+    )
 
 
 class SessionORM(Base):
@@ -106,3 +111,20 @@ class ChatMessageORM(Base):
     session: Mapped["SessionORM"] = relationship(
         back_populates="messages",
     )
+
+
+class UsageEventORM(Base):
+    """
+    One row per question asked or document uploaded. Kept apart from
+    sessions so usage history survives the user deleting their chats.
+    """
+    __tablename__ = "usage_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("users.id"),
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(index=True)

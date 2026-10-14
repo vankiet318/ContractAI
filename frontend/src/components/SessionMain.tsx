@@ -24,7 +24,17 @@ export function SessionMain({
 }) {
   const { showToast } = useToast();
   const { documents, isLoading, loadError, reload, refresh, remove } =
-    useDocuments(sessionId);
+    useDocuments(sessionId, (document) => {
+      if (document.status === "ready") {
+        showToast(`"${document.filename}" đã sẵn sàng để hỏi đáp.`, "success");
+      } else {
+        showToast(
+          document.error_message ??
+            `Không xử lý được "${document.filename}".`,
+          "error",
+        );
+      }
+    });
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("chat");
   const [previewCitation, setPreviewCitation] = useState<Citation | null>(
     null,

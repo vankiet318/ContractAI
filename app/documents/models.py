@@ -24,3 +24,7 @@ class Document:
 PROCESSING_FAILED_MESSAGE = (
     "Không xử lý được tài liệu. Vui lòng kiểm tra file và thử lại."
 )
+
+INTERRUPTED_MESSAGE = (
+    "Quá trình xử lý bị gián đoạn. Vui lòng xóa và tải lên lại tài liệu."
+)

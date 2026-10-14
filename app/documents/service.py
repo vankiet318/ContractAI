@@ -1,5 +1,9 @@
 from datetime import datetime
-from app.documents.models import Document, DocumentStatus
+from app.documents.models import (
+    INTERRUPTED_MESSAGE,
+    Document,
+    DocumentStatus,
+)
 from app.documents.repository import DocumentRepository
 
 
@@ -48,6 +52,13 @@ class DocumentService:
 
     def delete(self, document_id: str) -> None:
         self.repository.delete(document_id)
+
+    def fail_interrupted(self) -> int:
+        """
+        Run at startup: documents still processing when the process
+        stopped lost their indexing worker and would never finish.
+        """
+        return self.repository.fail_all_processing(INTERRUPTED_MESSAGE)
 
     def mark_ready(self, document_id: str) -> Document:
         document = self.repository.get(document_id)

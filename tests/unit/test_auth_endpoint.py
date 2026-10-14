@@ -1,9 +1,11 @@
+from datetime import datetime
 from types import SimpleNamespace
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.api.auth import create_auth_router
+from app.auth.models import User
 from app.auth.service import AccountLockedError
 
 
@@ -15,13 +17,18 @@ def always_limited() -> None:
     raise HTTPException(status_code=429, detail="limited")
 
 
-def build_client(auth_service, login_rate_limit=no_limit) -> TestClient:
+def build_client(
+    auth_service,
+    login_rate_limit=no_limit,
+    current_user=None,
+) -> TestClient:
     app = FastAPI()
     app.include_router(
         create_auth_router(
             auth_service=auth_service,
             login_rate_limit=login_rate_limit,
             register_rate_limit=no_limit,
+            get_current_user=lambda: current_user,
         ),
         prefix="/auth",
     )
@@ -64,3 +71,22 @@ def test_login_rate_limit_runs_before_authentication():
     )
 
     assert response.status_code == 429
+
+
+def test_me_returns_the_role_of_the_current_user():
+    user = User(
+        user_id="u1",
+        email="admin@example.com",
+        hashed_password="x",
+        created_at=datetime(2026, 1, 1),
+        role="admin",
+    )
+
+    response = build_client(SimpleNamespace(), current_user=user).get("/auth/me")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "user_id": "u1",
+        "email": "admin@example.com",
+        "role": "admin",
+    }
