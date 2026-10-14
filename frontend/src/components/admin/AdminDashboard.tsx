@@ -1,4 +1,4 @@
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
 import { useAdminDashboard } from "../../hooks/useAdminDashboard";
 import type { AdminOverview } from "../../types";
@@ -19,7 +19,7 @@ function StatTile({
 }: {
   label: string;
   value: string | number;
-  detail?: string;
+  detail?: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
@@ -27,7 +27,11 @@ function StatTile({
       <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
         {value}
       </p>
-      {detail && <p className="mt-0.5 text-xs text-slate-500">{detail}</p>}
+      {detail && (
+        <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+          {detail}
+        </div>
+      )}
     </div>
   );
 }
@@ -52,7 +56,15 @@ function StatTiles({ overview }: { overview: AdminOverview }) {
       <StatTile
         label="Phản hồi hữu ích"
         value={rated > 0 ? `${Math.round((overview.likes / rated) * 100)}%` : "—"}
-        detail={`${overview.likes} 👍 · ${overview.dislikes} 👎`}
+        detail={
+          <>
+            <ThumbsUp className="h-3.5 w-3.5" aria-label="Hữu ích" />
+            {overview.likes}
+            <span className="mx-1">·</span>
+            <ThumbsDown className="h-3.5 w-3.5" aria-label="Chưa tốt" />
+            {overview.dislikes}
+          </>
+        }
       />
     </div>
   );

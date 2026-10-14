@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { DocumentSummary } from "../types";
 import { LoadErrorMessage } from "./LoadErrorMessage";
 import { StatusBadge } from "./StatusBadge";
@@ -57,12 +57,11 @@ export function DocumentStatusList({
           <div className="flex items-center gap-2 shrink-0">
             <StatusBadge status={document.status} />
             <IconButton
-              tone="danger"
               onClick={() => onDelete(document.document_id)}
               title="Xóa tài liệu"
-              className="opacity-0 group-hover:opacity-100"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
             >
-              <X className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
             </IconButton>
           </div>
         </li>

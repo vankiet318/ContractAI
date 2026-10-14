@@ -1,4 +1,4 @@
-import { LayoutDashboard, Plus, X } from "lucide-react";
+import { LayoutDashboard, Plus, Trash2 } from "lucide-react";
 import type { ChatSessionSummary } from "../types";
 import { AppLogo } from "./AppLogo";
 import { LoadErrorMessage } from "./LoadErrorMessage";
@@ -73,12 +73,11 @@ export function SessionList({
                 {session.title}
               </button>
               <IconButton
-                tone="danger"
                 onClick={() => onDelete(session.session_id)}
                 title="Xóa đoạn chat"
-                className="mr-2 opacity-0 group-hover:opacity-100"
+                className="mr-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
               >
-                <X className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
               </IconButton>
             </li>
           ))}

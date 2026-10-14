@@ -23,7 +23,7 @@ export function RoleBadge({ role }: { role: AdminUserSummary["role"] }) {
   if (role !== "admin") return null;
 
   return (
-    <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-medium text-white">
+    <span className="rounded border border-slate-300 px-1.5 text-[11px] font-medium text-slate-600">
       Admin
     </span>
   );
@@ -32,10 +32,10 @@ export function RoleBadge({ role }: { role: AdminUserSummary["role"] }) {
 export function LockedBadge() {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800"
+      className="inline-flex items-center gap-1 text-xs text-slate-500"
       title="Tạm khoá do đăng nhập sai nhiều lần"
     >
-      <Lock className="h-3 w-3" />
+      <Lock className="h-3 w-3 text-red-500" />
       Tạm khoá
     </span>
   );
