@@ -20,3 +20,12 @@ class ChatMessage:
     feedback: MessageFeedback | None = None
     status: MessageStatus = "done"
     error_message: str | None = None
+
+
+@dataclass
+class RatedMessage:
+    """A message that received feedback, with who asked it and where."""
+    message: ChatMessage
+    user_id: str
+    user_email: str
+    session_title: str

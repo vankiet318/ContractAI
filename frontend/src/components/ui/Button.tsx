@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ComponentProps } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md";
@@ -61,7 +61,7 @@ const ICON_TONES: Record<IconButtonTone, string> = {
   danger: "enabled:hover:bg-red-50 enabled:hover:text-red-600",
 };
 
-interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface IconButtonProps extends ComponentProps<"button"> {
   tone?: IconButtonTone;
 }
 

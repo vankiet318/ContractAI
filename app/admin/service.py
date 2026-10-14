@@ -3,7 +3,10 @@ from datetime import datetime
 
 from app.auth.models import User, UserRole
 from app.auth.repository import UserRepository
+from app.messages.models import MessageFeedback, RatedMessage
 from app.messages.repository import ChatMessageRepository
+from app.sessions.deletion_service import SessionDeletionService
+from app.sessions.service import SessionService
 from app.usage.models import DailyUsage, UsageCounts, UserUsageTotals
 from app.usage.service import UsageService
 
@@ -14,6 +17,10 @@ class UserNotFoundError(Exception):
 
 class CannotChangeOwnRoleError(Exception):
     """An admin removing their own role could leave no admin at all."""
+
+
+class CannotDeleteSelfError(Exception):
+    pass
 
 
 @dataclass
@@ -44,11 +51,15 @@ class AdminService:
         user_repository: UserRepository,
         message_repository: ChatMessageRepository,
         usage_service: UsageService,
+        session_service: SessionService,
+        session_deletion_service: SessionDeletionService,
         clock=datetime.now,
     ):
         self.user_repository = user_repository
         self.message_repository = message_repository
         self.usage_service = usage_service
+        self.session_service = session_service
+        self.session_deletion_service = session_deletion_service
         self.clock = clock
 
     def overview(self, days: int) -> AdminOverview:
@@ -90,6 +101,20 @@ class AdminService:
 
         return user, self.usage_service.daily(days, user_id=user_id)
 
+    def list_feedback(
+        self,
+        days: int,
+        feedback: MessageFeedback,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[RatedMessage], int]:
+        return self.message_repository.list_rated_since(
+            since=self.usage_service.window_start(days),
+            feedback=feedback,
+            limit=limit,
+            offset=offset,
+        )
+
     def set_role(self, actor: User, user_id: str, role: UserRole) -> User:
         if actor.user_id == user_id:
             raise CannotChangeOwnRoleError(user_id)
@@ -98,6 +123,27 @@ class AdminService:
             raise UserNotFoundError(user_id)
 
         return self._get_user(user_id)
+
+    def unlock(self, user_id: str) -> User:
+        """Lifts a lock from too many failed logins."""
+        if not self.user_repository.unlock(user_id):
+            raise UserNotFoundError(user_id)
+
+        return self._get_user(user_id)
+
+    def delete_user(self, actor: User, user_id: str) -> None:
+        """Deletes the account with its chats, documents and usage history."""
+        if actor.user_id == user_id:
+            raise CannotDeleteSelfError(user_id)
+
+        self._get_user(user_id)
+
+        # Session by session, so files and vectors go too.
+        for session in self.session_service.list_for_user(user_id):
+            self.session_deletion_service.delete(session.session_id, user_id)
+
+        if not self.user_repository.delete(user_id):
+            raise UserNotFoundError(user_id)
 
     def is_locked(self, user: User) -> bool:
         return user.is_locked(self.clock())

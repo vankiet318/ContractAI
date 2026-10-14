@@ -47,7 +47,7 @@ Admins see an extra **Quản trị** button in the sidebar: usage per day (quest
 docker compose exec backend python -m app.scripts.set_role <email> admin
 ```
 
-Days are counted in `USAGE_TIMEZONE` (default `Asia/Ho_Chi_Minh`).
+Days are counted in `USAGE_TIMEZONE` (default `Asia/Ho_Chi_Minh`). The **Log hệ thống** tab shows the latest `LOG_BUFFER_SIZE` server log lines, kept in memory since the last restart; `docker compose logs backend` has the full log.
 
 ## Tests
 

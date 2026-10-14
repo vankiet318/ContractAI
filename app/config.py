@@ -327,6 +327,19 @@ class LLMConfig:
 
 
 @dataclass
+class LogConfig:
+
+    # Recent log lines kept in memory for the admin log page.
+    buffer_size: int = 2000
+
+    @classmethod
+    def from_env(cls) -> "LogConfig":
+        return cls(
+            buffer_size=int(os.getenv("LOG_BUFFER_SIZE", "2000")),
+        )
+
+
+@dataclass
 class UsageConfig:
 
     # IANA time zone the admin dashboard counts days in.

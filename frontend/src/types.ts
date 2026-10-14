@@ -120,3 +120,32 @@ export interface AdminUserUsage {
   days: number;
   daily: DailyUsage[];
 }
+
+export interface RatedMessage {
+  message_id: string;
+  question: string;
+  answer: string;
+  citations: Citation[];
+  feedback: MessageFeedback;
+  created_at: string;
+  user_id: string;
+  user_email: string;
+  session_title: string;
+}
+
+export interface FeedbackPage {
+  /** All matching messages, not just this page. */
+  total: number;
+  items: RatedMessage[];
+}
+
+export interface LogEntry {
+  entry_id: number;
+  created_at: string;
+  /** Python level name: DEBUG, INFO, WARNING, ERROR or CRITICAL. */
+  level: string;
+  logger: string;
+  message: string;
+  /** Formatted traceback, when the line was logged with an exception. */
+  exception: string | null;
+}

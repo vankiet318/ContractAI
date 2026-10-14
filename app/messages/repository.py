@@ -3,9 +3,9 @@ from typing import Any
 
 from sqlalchemy import func
 
-from app.db.models import ChatMessageORM
+from app.db.models import ChatMessageORM, SessionORM, UserORM
 from app.db.session import get_db_session
-from app.messages.models import ChatMessage, MessageFeedback
+from app.messages.models import ChatMessage, MessageFeedback, RatedMessage
 
 
 class ChatMessageRepository:
@@ -96,6 +96,47 @@ class ChatMessageRepository:
                 .all()
             )
             return {feedback: count for feedback, count in rows}
+
+    def list_rated_since(
+        self,
+        since: datetime,
+        feedback: MessageFeedback,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[RatedMessage], int]:
+        """
+        Messages asked since `since` that got `feedback`, newest first,
+        with the total count for paging.
+        """
+        with get_db_session() as db:
+            query = (
+                db.query(ChatMessageORM, UserORM.id, UserORM.email, SessionORM.title)
+                .join(SessionORM, SessionORM.id == ChatMessageORM.session_id)
+                .join(UserORM, UserORM.id == SessionORM.user_id)
+                .filter(
+                    ChatMessageORM.created_at >= since,
+                    ChatMessageORM.feedback == feedback,
+                )
+            )
+
+            total = query.count()
+
+            rows = (
+                query.order_by(ChatMessageORM.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+
+            return [
+                RatedMessage(
+                    message=self._to_domain(row),
+                    user_id=user_id,
+                    user_email=email,
+                    session_title=title,
+                )
+                for row, user_id, email, title in rows
+            ], total
 
     @staticmethod
     def _to_domain(row: ChatMessageORM) -> ChatMessage:

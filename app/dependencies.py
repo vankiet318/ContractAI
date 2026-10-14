@@ -15,6 +15,7 @@ from app.config import (
     RateLimitConfig,
     RerankingConfig,
     RetrievalConfig,
+    LogConfig,
     StorageConfig,
     UsageConfig,
 )
@@ -77,6 +78,7 @@ from app.usage.repository import UsageRepository
 from app.usage.service import UsageService
 
 from app.admin.service import AdminService
+from app.logs.buffer import LogBuffer
 
 from app.rate_limit.dependencies import (
     create_ip_rate_limit,
@@ -103,6 +105,10 @@ storage_config = StorageConfig.from_env()
 auth_config = AuthConfig.from_env()
 rate_limit_config = RateLimitConfig.from_env()
 usage_config = UsageConfig.from_env()
+log_config = LogConfig.from_env()
+
+# Installed on the loggers at startup (app.main), once uvicorn has set them up.
+log_buffer = LogBuffer(capacity=log_config.buffer_size)
 
 upload_dir = Path(storage_config.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
@@ -199,6 +205,8 @@ admin_service = AdminService(
     user_repository=user_repository,
     message_repository=message_repository,
     usage_service=usage_service,
+    session_service=session_service,
+    session_deletion_service=session_deletion_service,
 )
 
 get_current_user = create_get_current_user(user_repository)
@@ -381,5 +389,6 @@ llm_router = create_llm_router(
 
 admin_router = create_admin_router(
     admin_service=admin_service,
+    log_buffer=log_buffer,
     require_admin=require_admin,
 )

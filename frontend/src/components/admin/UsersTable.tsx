@@ -1,6 +1,7 @@
 import { ArrowDown, Lock, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { AdminUserSummary } from "../../types";
+import { ActionMenu, type ActionMenuItem } from "../ui/ActionMenu";
 import { TextInput } from "../ui/TextInput";
 import { formatDate, formatDateTime } from "./format";
 
@@ -33,10 +34,10 @@ export function LockedBadge() {
   return (
     <span
       className="inline-flex items-center gap-1 text-xs text-slate-500"
-      title="Tạm khoá do đăng nhập sai nhiều lần"
+      title="Tạm khóa do đăng nhập sai nhiều lần"
     >
       <Lock className="h-3 w-3 text-red-500" />
-      Tạm khoá
+      Tạm khóa
     </span>
   );
 }
@@ -46,11 +47,13 @@ export function UsersTable({
   days,
   selectedUserId,
   onSelect,
+  menuItems,
 }: {
   users: AdminUserSummary[];
   days: number;
   selectedUserId: string | null;
   onSelect: (userId: string) => void;
+  menuItems: (user: AdminUserSummary) => ActionMenuItem[];
 }) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("queries");
@@ -111,6 +114,9 @@ export function UsersTable({
                   </button>
                 </th>
               ))}
+              <th className="w-12 px-2 py-2">
+                <span className="sr-only">Thao tác</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -145,13 +151,20 @@ export function UsersTable({
                 <td className="whitespace-nowrap px-4 py-2 text-slate-600">
                   {formatDate(user.created_at)}
                 </td>
+                {/* Its own clicks must not also open the details panel. */}
+                <td
+                  className="px-2 py-1 text-right"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <ActionMenu items={menuItems(user)} />
+                </td>
               </tr>
             ))}
 
             {visibleUsers.length === 0 && (
               <tr>
                 <td
-                  colSpan={columns.length + 1}
+                  colSpan={columns.length + 2}
                   className="px-4 py-6 text-center text-slate-500"
                 >
                   Không có người dùng phù hợp.

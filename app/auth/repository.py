@@ -1,5 +1,5 @@
 from app.auth.models import User, UserRole
-from app.db.models import UserORM
+from app.db.models import UsageEventORM, UserORM
 from app.db.session import get_db_session
 
 
@@ -31,6 +31,34 @@ class UserRepository:
                 return False
 
             row.role = role
+            return True
+
+    def unlock(self, user_id: str) -> bool:
+        with get_db_session() as db:
+            row = db.get(UserORM, user_id)
+
+            if row is None:
+                return False
+
+            row.failed_login_attempts = 0
+            row.locked_until = None
+            return True
+
+    def delete(self, user_id: str) -> bool:
+        """
+        Deletes the account and its usage history. Its sessions must already
+        be gone: they own files and vectors outside the database.
+        """
+        with get_db_session() as db:
+            row = db.get(UserORM, user_id)
+
+            if row is None:
+                return False
+
+            db.query(UsageEventORM).filter(
+                UsageEventORM.user_id == user_id
+            ).delete()
+            db.delete(row)
             return True
 
     def get_by_id(self, user_id: str) -> User | None:

@@ -1,12 +1,10 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { fetchUserUsage, setUserRole } from "../../api/admin";
+import { fetchUserUsage } from "../../api/admin";
 import { toErrorMessage } from "../../api/client";
-import { useToast } from "../../hooks/useToast";
 import type { AdminUserUsage } from "../../types";
-import { ConfirmDialog } from "../ConfirmDialog";
 import { LoadErrorMessage } from "../LoadErrorMessage";
-import { Button, IconButton } from "../ui/Button";
+import { IconButton } from "../ui/Button";
 import { DailyBarChart } from "./DailyBarChart";
 import { formatDate, formatDay, QUERY_COLOR, UPLOAD_COLOR } from "./format";
 import { LockedBadge, RoleBadge } from "./UsersTable";
@@ -14,21 +12,18 @@ import { LockedBadge, RoleBadge } from "./UsersTable";
 export function UserUsagePanel({
   userId,
   days,
-  isCurrentUser,
+  version,
   onClose,
-  onRoleChanged,
 }: {
   userId: string;
   days: number;
-  isCurrentUser: boolean;
+  /** Bumped when the user was changed elsewhere, to load them again. */
+  version: number;
   onClose: () => void;
-  onRoleChanged: () => void;
 }) {
-  const { showToast } = useToast();
   const [usage, setUsage] = useState<AdminUserUsage | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [isConfirmingRole, setIsConfirmingRole] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,25 +44,9 @@ export function UserUsagePanel({
     return () => {
       cancelled = true;
     };
-  }, [userId, days, reloadKey]);
+  }, [userId, days, version, reloadKey]);
 
   const user = usage?.user;
-  const nextRole = user?.role === "admin" ? "user" : "admin";
-
-  const changeRole = async () => {
-    setIsConfirmingRole(false);
-
-    try {
-      await setUserRole(userId, nextRole);
-    } catch (error) {
-      showToast(toErrorMessage(error, "Không đổi được quyền."), "error");
-      return;
-    }
-
-    showToast("Đã cập nhật quyền.", "success");
-    setReloadKey((key) => key + 1);
-    onRoleChanged();
-  };
 
   // Newest first, only days with activity.
   const activeDays = (usage?.daily ?? [])
@@ -164,39 +143,6 @@ export function UserUsagePanel({
           </>
         )}
       </div>
-
-      {user && (
-        <footer className="border-t border-slate-200 px-4 py-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="w-full"
-            disabled={isCurrentUser}
-            title={
-              isCurrentUser
-                ? "Không thể tự đổi quyền của chính mình"
-                : undefined
-            }
-            onClick={() => setIsConfirmingRole(true)}
-          >
-            {user.role === "admin" ? "Gỡ quyền admin" : "Cấp quyền admin"}
-          </Button>
-        </footer>
-      )}
-
-      <ConfirmDialog
-        open={isConfirmingRole}
-        title={nextRole === "admin" ? "Cấp quyền admin" : "Gỡ quyền admin"}
-        message={
-          nextRole === "admin"
-            ? `${user?.email} sẽ xem được thống kê của mọi người dùng và đổi quyền của họ.`
-            : `${user?.email} sẽ không còn truy cập được trang quản trị.`
-        }
-        confirmLabel="Xác nhận"
-        confirmVariant={nextRole === "admin" ? "primary" : "danger"}
-        onConfirm={changeRole}
-        onCancel={() => setIsConfirmingRole(false)}
-      />
     </aside>
   );
 }
